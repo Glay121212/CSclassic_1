@@ -1369,51 +1369,63 @@
         try {
           app = initializeApp(firebaseConfig);
           auth = getAuth(app);
-          db = getFirestore(app);
+          db = (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)')
+            ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+            : getFirestore(app);
 
           backendIndicator.textContent = 'Connecting...';
           backendIndicator.style.color = 'var(--vgui-gold)';
 
-          signInAnonymously(auth).catch((err) => {
-            console.error('Anonymous sign in error:', err);
-            let msg = err.message;
-            if (err.code === 'auth/admin-restricted-operation' || err.code === 'auth/operation-not-allowed') {
-              msg = 'Anonymous sign-in is off. Turn it on in Firebase Console -> Authentication -> Sign-in method.';
-            }
-            showBanner(`<strong>Auth Error:</strong> ${escapeHtml(msg)}`, 'error');
-            backendIndicator.textContent = 'Auth Failed';
-            backendIndicator.style.color = 'var(--vgui-red)';
-          });
+          async function setupClientUser(user) {
+            if (currentUser && currentUser.uid === user.uid && currentUser.isAnonymous === user.isAnonymous) return;
+            currentUser = user;
+            backendIndicator.textContent = 'Connected (Firebase)';
+            backendIndicator.style.color = 'var(--vgui-green)';
+            backendDetail.textContent = `UID: ${user.uid.substring(0, 8)}... (${firebaseConfig.projectId})`;
 
-          onAuthStateChanged(auth, async (user) => {
-            if (user) {
-              currentUser = user;
-              backendIndicator.textContent = 'Connected (Firebase)';
-              backendIndicator.style.color = 'var(--vgui-green)';
-              backendDetail.textContent = `UID: ${user.uid.substring(0, 8)}... (${firebaseConfig.projectId})`;
-
-              // Load or create player doc
-              const playerRef = doc(db, 'players', user.uid);
-              try {
-                const snap = await getDoc(playerRef);
-                if (snap.exists()) {
-                  playerProfile = { ...playerProfile, ...snap.data() };
-                } else {
-                  await setDoc(playerRef, {
-                    name: playerProfile.name,
-                    elo: 1000,
-                    w: 0,
-                    l: 0,
-                    hist: [],
-                    lastMatch: ''
-                  });
-                }
-              } catch(e) {
-                console.warn('Could not read player doc:', e);
+            // Load or create player doc
+            const playerRef = doc(db, 'players', user.uid);
+            try {
+              const snap = await getDoc(playerRef);
+              if (snap.exists()) {
+                playerProfile = { ...playerProfile, ...snap.data() };
+              } else {
+                await setDoc(playerRef, {
+                  name: playerProfile.name,
+                  elo: 1000,
+                  w: 0,
+                  l: 0,
+                  hist: [],
+                  lastMatch: ''
+                });
               }
+            } catch(e) {
+              console.warn('Could not read/write player doc:', e);
+            }
 
-              updateHud();
-              initFirestoreListeners();
+            updateHud();
+            initFirestoreListeners();
+          }
+
+          signInAnonymously(auth)
+            .then(cred => {
+              if (cred && cred.user) {
+                setupClientUser(cred.user);
+              }
+            })
+            .catch(async (err) => {
+              console.warn('Anonymous sign-in not enabled on project; using persistent device UID for live Firestore:', err.message);
+              let stableUid = localStorage.getItem('cs16_stable_uid');
+              if (!stableUid) {
+                stableUid = 'p_' + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+                localStorage.setItem('cs16_stable_uid', stableUid);
+              }
+              await setupClientUser({ uid: stableUid, isAnonymous: true });
+            });
+
+          onAuthStateChanged(auth, (user) => {
+            if (user) {
+              setupClientUser(user);
             }
           });
         } catch (err) {

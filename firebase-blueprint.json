@@ -1,0 +1,160 @@
+{
+  "entities": {
+    "Player": {
+      "title": "Player",
+      "description": "Counter-Strike 1.6 player profile and persistent competitive ratings.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Player nickname (max 16 characters).",
+          "maxLength": 16,
+          "minLength": 1
+        },
+        "elo": {
+          "type": "number",
+          "description": "Elo rating (starting at 1000, min 100)."
+        },
+        "w": {
+          "type": "number",
+          "description": "Number of won matches."
+        },
+        "l": {
+          "type": "number",
+          "description": "Number of lost matches."
+        },
+        "hist": {
+          "type": "array",
+          "description": "Recent match history entries (map, delta)."
+        },
+        "lastMatch": {
+          "type": "string",
+          "description": "ID of last processed match."
+        }
+      },
+      "required": ["name", "elo", "w", "l"]
+    },
+    "QueueEntry": {
+      "title": "QueueEntry",
+      "description": "Active matchmaking queue entry for a player.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Player nickname."
+        },
+        "elo": {
+          "type": "number",
+          "description": "Player Elo rating at queue time."
+        },
+        "region": {
+          "type": "string",
+          "description": "Chosen matchmaking region.",
+          "enum": ["Europe", "Americas", "Asia"]
+        },
+        "maps": {
+          "type": "array",
+          "description": "Accepted map pool."
+        },
+        "joined": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when player entered the queue."
+        },
+        "seen": {
+          "type": "number",
+          "description": "Client timestamp in ms for heartbeat liveness check."
+        }
+      },
+      "required": ["name", "elo", "region", "maps", "seen"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "A 5v5 Counter-Strike 1.6 classic pug match.",
+      "type": "object",
+      "properties": {
+        "region": {
+          "type": "string",
+          "description": "Match region."
+        },
+        "map": {
+          "type": "string",
+          "description": "Chosen map from player votes."
+        },
+        "players": {
+          "type": "array",
+          "description": "Array of 10 players with ID, name, and rating."
+        },
+        "pids": {
+          "type": "array",
+          "description": "Array of 10 player UIDs for query indexing."
+        },
+        "a": {
+          "type": "array",
+          "description": "Array of 5 player UIDs on Team A (CT)."
+        },
+        "b": {
+          "type": "array",
+          "description": "Array of 5 player UIDs on Team B (T)."
+        },
+        "host": {
+          "type": "string",
+          "description": "UID of the player randomly selected to host the server."
+        },
+        "pw": {
+          "type": "string",
+          "description": "6-character server join password."
+        },
+        "addr": {
+          "type": "string",
+          "description": "Public IP:Port shared by the host."
+        },
+        "done": {
+          "type": "boolean",
+          "description": "Whether the match has finished and quorum is reached."
+        },
+        "result": {
+          "type": "object",
+          "description": "Match outcome details and rating deltas."
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["region", "map", "players", "pids", "a", "b", "host", "pw", "done"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Player vote on the outcome of a match.",
+      "type": "object",
+      "properties": {
+        "w": {
+          "type": "string",
+          "description": "Reported winner: A (CT), B (T), or X (Void).",
+          "enum": ["A", "B", "X"]
+        }
+      },
+      "required": ["w"]
+    }
+  },
+  "firestore": {
+    "/players/{uid}": {
+      "schema": "Player",
+      "description": "Player profiles and persistent rating records."
+    },
+    "/queue/{uid}": {
+      "schema": "QueueEntry",
+      "description": "Real-time queue entries per region."
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "5v5 match sessions."
+    },
+    "/matches/{matchId}/reports/{uid}": {
+      "schema": "Report",
+      "description": "Player outcome reports for quorum verification."
+    }
+  }
+}

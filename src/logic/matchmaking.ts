@@ -229,3 +229,29 @@ export function generateHldsCommand(map: string, pw: string): string {
 export function generateConnectCommand(addr: string, pw: string): string {
   return `connect ${addr}; password ${pw}`;
 }
+
+/**
+ * Generates an in-game console command to launch a local training server while waiting in queue:
+ */
+export function generateWarmupConsoleCommand(
+  map: string,
+  preset: 'bots' | 'practice' | 'vanilla' = 'bots'
+): string {
+  const cleanMap = map || 'de_dust2';
+  if (preset === 'bots') {
+    return `map ${cleanMap}; bot_quota 9; mp_roundtime 9; mp_freezetime 0; mp_buytime 99; mp_startmoney 16000`;
+  }
+  if (preset === 'practice') {
+    return `map ${cleanMap}; sv_cheats 1; sv_infinite_ammo 1; mp_roundtime 9; mp_buytime 99; mp_startmoney 16000; mp_freezetime 0`;
+  }
+  return `map ${cleanMap}`;
+}
+
+/**
+ * Builds dedicated HLDS warmup server launch command (port 27016 to avoid clashing with match port 27015):
+ */
+export function generateWarmupHldsCommand(map: string, port = 27016): string {
+  const cleanMap = map || 'de_dust2';
+  return `hlds.exe -console -game cstrike +port ${port} +maxplayers 10 +map ${cleanMap} +hostname "CS 1.6 Warmup Training"`;
+}
+

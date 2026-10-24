@@ -625,6 +625,66 @@
               </div>
             </div>
 
+            <!-- Warmup & Practice Server While Queued -->
+            <div class="vgui-inset" style="padding: 12px; border-top: 2px solid var(--vgui-gold);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="font-hud" style="color: var(--vgui-gold); font-size: 14px;">
+                    🎯 Warmup & Solo Practice Server
+                  </span>
+                  <span style="font-size: 10px; background: #262b22; color: #9fe28d; padding: 2px 6px; border: 1px solid #455a3d; text-transform: uppercase;">
+                    Train While Waiting
+                  </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <button id="test-beep-btn" class="vgui-btn" style="font-size: 10px; padding: 3px 8px;" title="Test the match ready audio alert buzzer">
+                    🔊 Test Match Alert
+                  </button>
+                </div>
+              </div>
+
+              <p style="font-size: 11px; color: var(--vgui-text-dim); margin-bottom: 8px;">
+                Jump into your CS 1.6 client and practice while waiting for 10 players. When your match is ready, this tab will <strong>buzz an audio alert</strong> and flash your window title!
+              </p>
+
+              <!-- Warmup controls: Map selector & Preset -->
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="warmup-map-select" style="font-size: 10px; text-transform: uppercase; color: var(--vgui-text-dim); font-weight: bold;">Map:</label>
+                  <select id="warmup-map-select" class="vgui-input" style="padding: 3px 6px; font-size: 11px;">
+                    <option value="de_dust2">de_dust2</option>
+                    <option value="de_inferno">de_inferno</option>
+                    <option value="de_mirage">de_mirage</option>
+                    <option value="aim_ak-colt">aim_ak-colt</option>
+                    <option value="fy_iceworld">fy_iceworld</option>
+                  </select>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <label for="warmup-mode-select" style="font-size: 10px; text-transform: uppercase; color: var(--vgui-text-dim); font-weight: bold;">Training Preset:</label>
+                  <select id="warmup-mode-select" class="vgui-input" style="padding: 3px 6px; font-size: 11px;">
+                    <option value="bots">Bot Deathmatch (9 Bots, $16k, 0s Freeze)</option>
+                    <option value="practice">Recoil & Nades (Cheats, Infinite Ammo)</option>
+                    <option value="vanilla">Vanilla Offline (Standard Local Match)</option>
+                    <option value="hlds">Dedicated HLDS (Port 27016)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Ready-to-copy console command -->
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div id="warmup-command-box" class="console-box" style="font-size: 11px;">
+                  map de_dust2; bot_quota 9; mp_roundtime 9; mp_freezetime 0; mp_buytime 99; mp_startmoney 16000
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                  <button id="copy-warmup-btn" class="vgui-btn vgui-btn-primary" style="font-size: 10px; padding: 5px 12px;">
+                    Copy Console Command
+                  </button>
+                  <span id="warmup-copy-msg" class="copy-pill" style="display: none;">Copied to clipboard! Paste into CS 1.6 console (~)</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Queue Actions & Testing Simulation helper -->
             <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--vgui-border); padding-top: 14px;">
               <button id="leave-queue-btn" class="vgui-btn vgui-btn-danger">
@@ -1091,6 +1151,13 @@
       const leaveQueueBtn = document.getElementById('leave-queue-btn');
       const simulateQueueBtn = document.getElementById('simulate-queue-btn');
 
+      const warmupMapSelect = document.getElementById('warmup-map-select');
+      const warmupModeSelect = document.getElementById('warmup-mode-select');
+      const warmupCommandBox = document.getElementById('warmup-command-box');
+      const copyWarmupBtn = document.getElementById('copy-warmup-btn');
+      const warmupCopyMsg = document.getElementById('warmup-copy-msg');
+      const testBeepBtn = document.getElementById('test-beep-btn');
+
       const matchIdTag = document.getElementById('match-id-tag');
       const matchMapBadge = document.getElementById('match-map-badge');
       const matchRegionBadge = document.getElementById('match-region-badge');
@@ -1468,6 +1535,151 @@
       });
 
       // =========================================================================
+      // Warmup & Practice Server while Queued + Audio Alert
+      // =========================================================================
+      let audioCtx = null;
+      let titleFlashTimer = null;
+      const originalDocTitle = document.title || '1.6 Pug Finder';
+
+      function playMatchAlertSound() {
+        try {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) return;
+          if (!audioCtx) {
+            audioCtx = new AudioContextClass();
+          }
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          const now = audioCtx.currentTime;
+
+          // Dual-tone CS-style radio buzzer: 880Hz -> 1174Hz
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+
+          osc1.type = 'triangle';
+          osc1.frequency.setValueAtTime(880, now);
+          osc1.frequency.setValueAtTime(1174.66, now + 0.14);
+
+          osc2.type = 'square';
+          osc2.frequency.setValueAtTime(440, now);
+          osc2.frequency.setValueAtTime(587.33, now + 0.14);
+
+          gainNode.gain.setValueAtTime(0.001, now);
+          gainNode.gain.exponentialRampToValueAtTime(0.28, now + 0.02);
+          gainNode.gain.setValueAtTime(0.22, now + 0.28);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+          osc1.connect(gainNode);
+          osc2.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 0.55);
+          osc2.stop(now + 0.55);
+        } catch (e) {
+          console.warn('Audio alert sound not supported:', e);
+        }
+      }
+
+      function flashMatchFoundTitle() {
+        if (titleFlashTimer) clearInterval(titleFlashTimer);
+        let isFlashing = true;
+        let count = 0;
+        titleFlashTimer = setInterval(() => {
+          document.title = isFlashing ? '⚔️ [MATCH READY!] 1.6 Pug Finder' : '>>> JOIN SERVER NOW <<<';
+          isFlashing = !isFlashing;
+          count++;
+          if (count > 30) {
+            clearInterval(titleFlashTimer);
+            titleFlashTimer = null;
+            document.title = originalDocTitle;
+          }
+        }, 500);
+
+        const onFocus = () => {
+          if (titleFlashTimer) {
+            clearInterval(titleFlashTimer);
+            titleFlashTimer = null;
+            document.title = originalDocTitle;
+          }
+          window.removeEventListener('focus', onFocus);
+        };
+        window.addEventListener('focus', onFocus);
+      }
+
+      function getWarmupCommand(map, mode) {
+        const cleanMap = map || 'de_dust2';
+        if (mode === 'bots') {
+          return `map ${cleanMap}; bot_quota 9; mp_roundtime 9; mp_freezetime 0; mp_buytime 99; mp_startmoney 16000`;
+        }
+        if (mode === 'practice') {
+          return `map ${cleanMap}; sv_cheats 1; sv_infinite_ammo 1; mp_roundtime 9; mp_buytime 99; mp_startmoney 16000; mp_freezetime 0`;
+        }
+        if (mode === 'vanilla') {
+          return `map ${cleanMap}`;
+        }
+        if (mode === 'hlds') {
+          return `hlds.exe -console -game cstrike +port 27016 +maxplayers 10 +map ${cleanMap} +hostname "CS 1.6 Warmup Training"`;
+        }
+        return `map ${cleanMap}; bot_quota 9; mp_roundtime 9; mp_freezetime 0; mp_buytime 99; mp_startmoney 16000`;
+      }
+
+      function updateWarmupCommandDisplay() {
+        if (!warmupCommandBox || !warmupMapSelect || !warmupModeSelect) return;
+        const map = warmupMapSelect.value || 'de_dust2';
+        const mode = warmupModeSelect.value || 'bots';
+        warmupCommandBox.textContent = getWarmupCommand(map, mode);
+      }
+
+      if (warmupMapSelect) warmupMapSelect.addEventListener('change', updateWarmupCommandDisplay);
+      if (warmupModeSelect) warmupModeSelect.addEventListener('change', updateWarmupCommandDisplay);
+
+      if (testBeepBtn) {
+        testBeepBtn.addEventListener('click', () => {
+          playMatchAlertSound();
+          flashMatchFoundTitle();
+        });
+      }
+
+      if (copyWarmupBtn) {
+        copyWarmupBtn.addEventListener('click', () => {
+          const cmd = warmupCommandBox ? warmupCommandBox.textContent.trim() : '';
+          if (!cmd) return;
+          const onCopied = () => {
+            if (warmupCopyMsg) {
+              warmupCopyMsg.style.display = 'inline-block';
+              setTimeout(() => { warmupCopyMsg.style.display = 'none'; }, 3000);
+            }
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(cmd).then(onCopied).catch(() => {
+              const ta = document.createElement('textarea');
+              ta.value = cmd;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              onCopied();
+            });
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = cmd;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            onCopied();
+          }
+        });
+      }
+
+      // Initial warmup display update
+      updateWarmupCommandDisplay();
+
+      // =========================================================================
       // Matchmaking Queue Flow
       // =========================================================================
       async function enterQueue() {
@@ -1478,6 +1690,13 @@
         isQueued = true;
         queueJoinedTime = Date.now();
         queueRegionTag.textContent = `${selectedRegion}`;
+
+        // Sync warmup map with first selected map if present
+        if (selectedMaps.length > 0 && warmupMapSelect) {
+          warmupMapSelect.value = selectedMaps[0];
+          updateWarmupCommandDisplay();
+        }
+
         switchScreen('queue');
         startQueueTimers();
 
@@ -1728,6 +1947,10 @@
       function enterMatch(matchDoc) {
         if (!currentUser) return;
         const isSameMatch = currentMatch && currentMatch.id === matchDoc.id;
+        if (!isSameMatch) {
+          playMatchAlertSound();
+          flashMatchFoundTitle();
+        }
         currentMatch = matchDoc;
         isQueued = false;
         clearInterval(queueHeartbeatTimer);

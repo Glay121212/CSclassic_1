@@ -9,6 +9,8 @@ import {
   generateServerPassword,
   generateHldsCommand,
   generateConnectCommand,
+  generateWarmupConsoleCommand,
+  generateWarmupHldsCommand,
 } from './matchmaking';
 
 test('validatePlayerName checks length and allowed characters', () => {
@@ -54,24 +56,11 @@ test('balanceTeamsSnakeDraft distributes 10 players by A,B,B,A,A,B,B,A,A,B', () 
   assert.equal(teamA.length, 5);
   assert.equal(teamB.length, 5);
 
-  // Pattern:
-  // p1 (1500) -> A
-  // p2 (1400) -> B
-  // p3 (1300) -> B
-  // p4 (1200) -> A
-  // p5 (1100) -> A
-  // p6 (1000) -> B
-  // p7 (950) -> B
-  // p8 (900) -> A
-  // p9 (850) -> A
-  // p10 (800) -> B
   assert.deepEqual(teamA.map((p) => p.id), ['p1', 'p4', 'p5', 'p8', 'p9']);
   assert.deepEqual(teamB.map((p) => p.id), ['p2', 'p3', 'p6', 'p7', 'p10']);
 
   const avgA = teamA.reduce((sum, p) => sum + p.elo, 0) / 5;
   const avgB = teamB.reduce((sum, p) => sum + p.elo, 0) / 5;
-  // Team A: (1500 + 1200 + 1100 + 900 + 850) / 5 = 1110
-  // Team B: (1400 + 1300 + 1000 + 950 + 800) / 5 = 1090
   assert.equal(avgA, 1110);
   assert.equal(avgB, 1090);
 });
@@ -83,11 +72,9 @@ test('chooseMapFromVotes selects highest voted map or tie-break', () => {
     ['de_dust2', 'de_mirage'],
     ['de_inferno'],
   ];
-  // dust2 has 3 votes, inferno has 2, mirage has 1
   const map = chooseMapFromVotes(votes, ['de_inferno', 'de_dust2', 'de_mirage']);
   assert.equal(map, 'de_dust2');
 
-  // Tie break:
   const tieVotes = [
     ['de_inferno'],
     ['de_mirage'],
@@ -112,24 +99,21 @@ test('computeEloDeltas calculates K=24 Elo adjustments and handles minimum ratin
     { id: 'b5', name: 'B5', elo: 1000 },
   ];
 
-  // Equal teams: Win A -> A gets +12, B gets -12
   const deltasWinA = computeEloDeltas(teamA, teamB, 'A');
   assert.equal(deltasWinA['a1'], 12);
   assert.equal(deltasWinA['b1'], -12);
 
-  // Void: all deltas 0
   const deltasVoid = computeEloDeltas(teamA, teamB, 'X');
   assert.equal(deltasVoid['a1'], 0);
   assert.equal(deltasVoid['b1'], 0);
 
-  // Minimum rating 100 constraint
   const lowPlayerTeam = [{ id: 'low', name: 'Low', elo: 105 }];
   const normalTeam = [{ id: 'norm', name: 'Norm', elo: 1200 }];
   const deltasLoss = computeEloDeltas(lowPlayerTeam, normalTeam, 'B');
   assert.ok(105 + deltasLoss['low'] >= 100);
 });
 
-test('command generators format HLDS and connect strings properly', () => {
+test('command generators format HLDS, connect, and warmup training strings properly', () => {
   const hlds = generateHldsCommand('de_inferno', 'pug123');
   assert.equal(
     hlds,
@@ -141,4 +125,23 @@ test('command generators format HLDS and connect strings properly', () => {
 
   const pw = generateServerPassword();
   assert.equal(pw.length, 6);
+
+  // Warmup commands
+  const warmupBot = generateWarmupConsoleCommand('de_dust2', 'bots');
+  assert.equal(
+    warmupBot,
+    'map de_dust2; bot_quota 9; mp_roundtime 9; mp_freezetime 0; mp_buytime 99; mp_startmoney 16000'
+  );
+
+  const warmupPractice = generateWarmupConsoleCommand('de_inferno', 'practice');
+  assert.equal(
+    warmupPractice,
+    'map de_inferno; sv_cheats 1; sv_infinite_ammo 1; mp_roundtime 9; mp_buytime 99; mp_startmoney 16000; mp_freezetime 0'
+  );
+
+  const warmupHlds = generateWarmupHldsCommand('de_mirage', 27016);
+  assert.equal(
+    warmupHlds,
+    'hlds.exe -console -game cstrike +port 27016 +maxplayers 10 +map de_mirage +hostname "CS 1.6 Warmup Training"'
+  );
 });

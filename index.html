@@ -1,0 +1,2309 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>1.6 Pug Finder - CS 1.6 5v5 Matchmaking</title>
+    <meta name="description" content="Browser matchmaking for Counter-Strike 1.6 5v5 classic pugs with Anonymous Auth, Firestore matchmaking, and classic VGUI styling." />
+    <meta property="og:title" content="1.6 Pug Finder" />
+    <meta property="og:description" content="Browser matchmaking for Counter-Strike 1.6 5v5 classic pugs." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Google Fonts: Rajdhani for classic tactical HUD numbers and headers -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+      /* ==========================================================================
+         STEAM CS 1.6 VGUI THEME - AUTHENTIC COLORWAY & BEVELS
+         Base: #2b3027 | Panel: #4c5844 | Inset: #3e4637 | Well: #262b22 | Border: #6b7a60
+         Accent Gold: #c4b550 | CT: #6f9bd1 | T: #d1a45a | Text: #d8ded0
+         ========================================================================== */
+      :root {
+        --vgui-bg: #2b3027;
+        --vgui-panel: #4c5844;
+        --vgui-inset: #3e4637;
+        --vgui-well: #262b22;
+        --vgui-border: #6b7a60;
+        --vgui-border-light: #7e8f72;
+        --vgui-border-dark: #1b1f18;
+        --vgui-gold: #c4b550;
+        --vgui-gold-hover: #dac85b;
+        --vgui-text: #d8ded0;
+        --vgui-text-dim: #97a38f;
+        --vgui-text-dark: #1a1e17;
+        --vgui-ct: #6f9bd1;
+        --vgui-t: #d1a45a;
+        --vgui-green: #7bb554;
+        --vgui-red: #d15858;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        border-radius: 0 !important; /* Strict zero-pill discipline */
+      }
+
+      body {
+        background-color: var(--vgui-bg);
+        color: var(--vgui-text);
+        font-family: Verdana, Tahoma, sans-serif;
+        font-size: 13px;
+        line-height: 1.4;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        user-select: none;
+      }
+
+      /* Custom scrollbar in classic VGUI style */
+      ::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+        background: var(--vgui-well);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--vgui-panel);
+        border: 1px solid var(--vgui-border);
+        box-shadow: inset 1px 1px 0 #7e8f72, inset -1px -1px 0 #1b1f18;
+      }
+
+      h1, h2, h3, h4, .font-hud {
+        font-family: 'Rajdhani', sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+      }
+
+      /* VGUI Bevels */
+      .vgui-window {
+        background: var(--vgui-panel);
+        border: 1px solid var(--vgui-border);
+        box-shadow: inset 1px 1px 0 var(--vgui-border-light), inset -1px -1px 0 var(--vgui-border-dark);
+      }
+
+      .vgui-inset {
+        background: var(--vgui-inset);
+        border: 1px solid var(--vgui-border-dark);
+        box-shadow: inset 1px 1px 0 #282f23, inset -1px -1px 0 #4f5a46;
+      }
+
+      .vgui-well {
+        background: var(--vgui-well);
+        border: 1px solid #1a1f17;
+        box-shadow: inset 1px 1px 2px #10130e, inset -1px -1px 0 #333a2e;
+      }
+
+      /* Buttons */
+      .vgui-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--vgui-panel);
+        color: var(--vgui-text);
+        border: 1px solid var(--vgui-border-dark);
+        box-shadow: inset 1px 1px 0 var(--vgui-border-light), inset -1px -1px 0 var(--vgui-border-dark);
+        padding: 6px 14px;
+        font-family: Verdana, Tahoma, sans-serif;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        outline: none;
+        transition: none;
+      }
+
+      .vgui-btn:hover:not(:disabled) {
+        background: #55634d;
+        color: #ffffff;
+      }
+
+      .vgui-btn:active:not(:disabled) {
+        box-shadow: inset 1px 1px 0 var(--vgui-border-dark), inset -1px -1px 0 var(--vgui-border-light);
+        padding-top: 7px;
+        padding-bottom: 5px;
+      }
+
+      .vgui-btn:focus-visible {
+        outline: 1px dotted var(--vgui-gold);
+        outline-offset: -2px;
+      }
+
+      .vgui-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .vgui-btn-primary {
+        background: var(--vgui-gold);
+        color: var(--vgui-text-dark);
+        border: 1px solid #7c722a;
+        box-shadow: inset 1px 1px 0 #e4d777, inset -1px -1px 0 #6e6524;
+      }
+
+      .vgui-btn-primary:hover:not(:disabled) {
+        background: var(--vgui-gold-hover);
+        color: #000000;
+      }
+
+      .vgui-btn-primary:active:not(:disabled) {
+        box-shadow: inset 1px 1px 0 #6e6524, inset -1px -1px 0 #e4d777;
+      }
+
+      .vgui-btn-danger {
+        background: #6d3939;
+        color: #f0caca;
+        border: 1px solid #3d1c1c;
+        box-shadow: inset 1px 1px 0 #8d4f4f, inset -1px -1px 0 #3d1c1c;
+      }
+      .vgui-btn-danger:hover:not(:disabled) {
+        background: #7d4242;
+        color: #ffffff;
+      }
+
+      /* Text inputs & selects */
+      .vgui-input {
+        background: var(--vgui-well);
+        color: var(--vgui-text);
+        border: 1px solid #1a1f17;
+        box-shadow: inset 1px 1px 2px #10130e;
+        padding: 6px 10px;
+        font-family: Verdana, Tahoma, sans-serif;
+        font-size: 13px;
+        outline: none;
+      }
+
+      .vgui-input:focus {
+        border-color: var(--vgui-gold);
+      }
+
+      /* Title bar */
+      .vgui-titlebar {
+        background: #394233;
+        border-bottom: 1px solid var(--vgui-border-dark);
+        padding: 5px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      /* Status banners */
+      .vgui-banner {
+        padding: 8px 12px;
+        border: 1px solid var(--vgui-border);
+        font-size: 12px;
+        margin-bottom: 12px;
+      }
+      .vgui-banner-info {
+        background: #2a3423;
+        border-color: #5c7949;
+        color: #b7db9e;
+      }
+      .vgui-banner-warning {
+        background: #3b351e;
+        border-color: #8b7d38;
+        color: #eedf89;
+      }
+      .vgui-banner-error {
+        background: #3c2424;
+        border-color: #834444;
+        color: #f1b3b3;
+      }
+
+      /* Map Cards */
+      .map-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      .map-card {
+        background: var(--vgui-well);
+        border: 2px solid var(--vgui-border-dark);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        transition: border-color 0.1s, opacity 0.1s;
+      }
+
+      .map-card.selected {
+        border-color: var(--vgui-gold);
+        box-shadow: 0 0 6px rgba(196, 181, 80, 0.4);
+      }
+
+      .map-card:not(.selected) {
+        opacity: 0.5;
+        filter: grayscale(40%);
+      }
+
+      .map-card:hover:not(.selected) {
+        opacity: 0.8;
+        border-color: var(--vgui-border);
+      }
+
+      .map-label {
+        background: #181c15;
+        color: var(--vgui-text);
+        padding: 5px 8px;
+        text-align: center;
+        font-family: 'Rajdhani', sans-serif;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        border-top: 1px solid #2a3124;
+      }
+
+      .map-card.selected .map-label {
+        color: var(--vgui-gold);
+        background: #20241b;
+      }
+
+      /* Ranks */
+      .rank-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        font-family: 'Rajdhani', sans-serif;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        border: 1px solid #1a1e17;
+      }
+      .rank-recruit { background: #3c4238; color: #a6b2a0; }
+      .rank-regular { background: #37462c; color: #9ecc86; }
+      .rank-veteran { background: #2a414b; color: #87c3da; }
+      .rank-elite { background: #4e3557; color: #cf9fe2; }
+      .rank-legend { background: #574620; color: #f2cb6c; border-color: #8c7031; }
+
+      /* Team Rosters */
+      .team-box-ct {
+        border-top: 3px solid var(--vgui-ct);
+      }
+      .team-box-t {
+        border-top: 3px solid var(--vgui-t);
+      }
+      .color-ct { color: var(--vgui-ct); }
+      .color-t { color: var(--vgui-t); }
+
+      /* Progress Bar */
+      .vgui-progress-container {
+        height: 18px;
+        background: var(--vgui-well);
+        border: 1px solid #1a1e17;
+        box-shadow: inset 1px 1px 2px #0e110c;
+        overflow: hidden;
+        position: relative;
+      }
+      .vgui-progress-bar {
+        height: 100%;
+        background: #526f3b;
+        box-shadow: inset 0 1px 0 #769f56, inset 0 -1px 0 #3b502a;
+        transition: width 0.3s ease;
+      }
+
+      /* Layout */
+      .app-layout {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 16px;
+        width: 100%;
+      }
+
+      @media (max-width: 900px) {
+        .app-layout {
+          grid-template-columns: 1fr;
+        }
+        .map-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Monospace Command Boxes */
+      .console-box {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        background: #141712;
+        color: #b8e698;
+        padding: 8px 10px;
+        border: 1px solid #232a1f;
+        box-shadow: inset 1px 1px 3px #0a0c09;
+        word-break: break-all;
+        user-select: all;
+      }
+
+      /* Tabular stats */
+      .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .stats-table th {
+        background: #363d30;
+        color: var(--vgui-text-dim);
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 13px;
+        text-align: left;
+        padding: 5px 8px;
+        border-bottom: 1px solid var(--vgui-border-dark);
+      }
+      .stats-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #282f23;
+        font-size: 12px;
+      }
+      .stats-table tr:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      /* Copy feedback badge */
+      .copy-pill {
+        display: inline-block;
+        padding: 2px 6px;
+        background: #2b4621;
+        color: #9fe28d;
+        font-size: 10px;
+        border: 1px solid #4a7538;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Top CS 1.6 VGUI Header -->
+    <header class="vgui-window" style="margin: 8px 16px 0; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 28px; height: 28px; background: var(--vgui-gold); display: flex; align-items: center; justify-content: center; border: 1px solid #7c722a;">
+          <span style="font-family: 'Rajdhani', sans-serif; font-weight: 700; color: #1a1e17; font-size: 16px;">1.6</span>
+        </div>
+        <div>
+          <h1 style="color: var(--vgui-gold); font-size: 22px; line-height: 1; margin: 0;">1.6 Pug Finder</h1>
+          <span style="color: var(--vgui-text-dim); font-size: 11px;">Counter-Strike 1.6 5v5 Matchmaking System</span>
+        </div>
+      </div>
+
+      <!-- Current Player HUD bar -->
+      <div id="player-hud" style="display: flex; align-items: center; gap: 16px; background: var(--vgui-well); padding: 6px 14px; border: 1px solid var(--vgui-border-dark);">
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 10px; color: var(--vgui-text-dim); text-transform: uppercase;">Player</span>
+          <span id="hud-name" style="font-weight: bold; color: #fff;">Connecting...</span>
+        </div>
+        <div style="width: 1px; height: 24px; background: #3e4637;"></div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 10px; color: var(--vgui-text-dim); text-transform: uppercase;">Rating</span>
+          <span id="hud-elo" class="font-hud" style="font-size: 18px; color: var(--vgui-gold); line-height: 1;">1000</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 10px; color: var(--vgui-text-dim); text-transform: uppercase;">Rank</span>
+          <span id="hud-rank" class="rank-badge rank-regular">Regular</span>
+        </div>
+        <div style="width: 1px; height: 24px; background: #3e4637;"></div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 10px; color: var(--vgui-text-dim); text-transform: uppercase;">Record</span>
+          <span id="hud-record" style="font-size: 11px; color: var(--vgui-text);">0W - 0L</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Global System / Mode Banner -->
+    <div style="margin: 8px 16px 0;">
+      <div id="status-banner" class="vgui-banner vgui-banner-info" style="display: none;"></div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="app-layout">
+      <!-- Left / Center Column: Dynamic Screen (Setup / Queue / Match) -->
+      <section style="display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- ==========================================
+             SCREEN 1: SETUP SCREEN
+             ========================================== -->
+        <div id="screen-setup" class="vgui-window" style="display: block;">
+          <div class="vgui-titlebar">
+            <span class="font-hud" style="color: var(--vgui-gold); font-size: 15px;">Match Setup // Player Config</span>
+            <span style="font-size: 11px; color: var(--vgui-text-dim);">CS 1.6 Protocol 48</span>
+          </div>
+
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 18px;">
+            <!-- Player Nickname -->
+            <div>
+              <label for="player-name-input" style="display: block; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; color: var(--vgui-text-dim);">
+                Player Name (max 16 characters; letters, numbers, space, _ . -)
+              </label>
+              <div style="display: flex; gap: 8px;">
+                <input id="player-name-input" type="text" maxlength="16" class="vgui-input" style="flex: 1; max-width: 320px;" placeholder="e.g. HeatoN" />
+                <button id="save-name-btn" class="vgui-btn">Save Name</button>
+              </div>
+              <div id="name-error" style="color: var(--vgui-red); font-size: 11px; margin-top: 4px; display: none;"></div>
+            </div>
+
+            <!-- Region Selection -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                <label style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--vgui-text-dim);">
+                  Select Match Region
+                </label>
+                <span id="region-waiting-badge" style="font-size: 12px; color: var(--vgui-gold); font-weight: bold;">
+                  Waiting: 0 / 10
+                </span>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="vgui-btn region-btn active-region" data-region="Europe">Europe (EU)</button>
+                <button class="vgui-btn region-btn" data-region="Americas">Americas (NA/SA)</button>
+                <button class="vgui-btn region-btn" data-region="Asia">Asia (AS/OCE)</button>
+              </div>
+            </div>
+
+            <!-- Map Selection -->
+            <div>
+              <label style="display: block; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 6px; color: var(--vgui-text-dim);">
+                Accepted Maps (choose at least one)
+              </label>
+              <div class="map-grid">
+                <!-- de_inferno Card -->
+                <div class="map-card selected" data-map="de_inferno" tabindex="0" role="button" aria-pressed="true" aria-label="Select de_inferno">
+                  <div style="width: 100%; aspect-ratio: 1/1; background: #261f18; position: relative;">
+                    <!-- Inline SVG Radar for de_inferno: dark brown & tan -->
+                    <svg viewBox="0 0 200 200" width="100%" height="100%" style="display: block;">
+                      <!-- Ground / Boundary -->
+                      <rect width="200" height="200" fill="#201812"/>
+                      <!-- Corridors & rooms -->
+                      <path d="M 30,170 L 60,170 L 60,130 L 75,130 L 75,90 L 50,90 L 50,45 L 85,45 L 85,75 L 115,75 L 115,40 L 160,40 L 160,85 L 130,85 L 130,120 L 170,120 L 170,165 L 120,165 L 120,140 L 90,140 L 90,175 L 30,175 Z" fill="#69533c" stroke="#483827" stroke-width="2"/>
+                      <!-- Banana curved alleyway -->
+                      <path d="M 45,150 Q 55,105 75,95 L 90,95 Q 70,110 60,150 Z" fill="#997b5a"/>
+                      <!-- Mid & 2nd Mid -->
+                      <rect x="90" y="70" width="25" height="50" fill="#997b5a"/>
+                      <!-- Apartments -->
+                      <rect x="115" y="45" width="40" height="35" fill="#886d4e"/>
+                      <!-- Bombsite A Area (Graveyard / Pit) -->
+                      <rect x="135" y="55" width="25" height="25" fill="#54412e" stroke="#c4a57b" stroke-dasharray="2,2"/>
+                      <circle cx="147" cy="67" r="8" fill="#d15858"/>
+                      <text x="147" y="71" font-family="'Rajdhani', sans-serif" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">A</text>
+                      <!-- Bombsite B Area -->
+                      <rect x="40" y="45" width="30" height="30" fill="#54412e" stroke="#c4a57b" stroke-dasharray="2,2"/>
+                      <circle cx="55" cy="60" r="8" fill="#d15858"/>
+                      <text x="55" y="64" font-family="'Rajdhani', sans-serif" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">B</text>
+                      <!-- T Spawn mark -->
+                      <text x="45" y="168" font-family="Verdana" font-size="8" fill="#d1a45a" font-weight="bold">T</text>
+                      <!-- CT Spawn mark -->
+                      <text x="145" y="150" font-family="Verdana" font-size="8" fill="#6f9bd1" font-weight="bold">CT</text>
+                    </svg>
+                  </div>
+                  <div class="map-label">de_inferno</div>
+                </div>
+
+                <!-- de_dust2 Card -->
+                <div class="map-card selected" data-map="de_dust2" tabindex="0" role="button" aria-pressed="true" aria-label="Select de_dust2">
+                  <div style="width: 100%; aspect-ratio: 1/1; background: #221e16; position: relative;">
+                    <!-- Inline SVG Radar for de_dust2: sand tones -->
+                    <svg viewBox="0 0 200 200" width="100%" height="100%" style="display: block;">
+                      <!-- Ground -->
+                      <rect width="200" height="200" fill="#1b1812"/>
+                      <!-- Long A & Short / Mid & Tunnels -->
+                      <path d="M 90,175 L 110,175 L 110,140 L 165,140 L 165,55 L 125,55 L 125,75 L 90,75 L 90,110 L 70,110 L 70,85 L 35,85 L 35,50 L 75,50 L 75,70 L 90,70 L 90,40 L 125,40 L 125,55 Z" fill="#756447" stroke="#4a3e2b" stroke-width="2"/>
+                      <!-- Long A doors & corridor -->
+                      <rect x="145" y="80" width="18" height="60" fill="#9e8964"/>
+                      <!-- Tunnels to B -->
+                      <path d="M 40,85 L 70,85 L 70,120 L 40,120 Z" fill="#9e8964"/>
+                      <!-- Mid / Catwalk -->
+                      <rect x="85" y="65" width="22" height="60" fill="#8f7b58"/>
+                      <rect x="105" y="65" width="30" height="15" fill="#8f7b58"/>
+                      <!-- Bombsite A -->
+                      <rect x="135" y="45" width="25" height="25" fill="#4d412d" stroke="#d2b885" stroke-dasharray="2,2"/>
+                      <circle cx="147" cy="57" r="8" fill="#d15858"/>
+                      <text x="147" y="61" font-family="'Rajdhani', sans-serif" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">A</text>
+                      <!-- Bombsite B -->
+                      <rect x="40" y="45" width="25" height="25" fill="#4d412d" stroke="#d2b885" stroke-dasharray="2,2"/>
+                      <circle cx="52" cy="57" r="8" fill="#d15858"/>
+                      <text x="52" y="61" font-family="'Rajdhani', sans-serif" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">B</text>
+                      <!-- T Spawn mark -->
+                      <text x="96" y="170" font-family="Verdana" font-size="8" fill="#d1a45a" font-weight="bold">T</text>
+                      <!-- CT Spawn mark -->
+                      <text x="100" y="48" font-family="Verdana" font-size="8" fill="#6f9bd1" font-weight="bold">CT</text>
+                    </svg>
+                  </div>
+                  <div class="map-label">de_dust2</div>
+                </div>
+
+                <!-- de_mirage Card -->
+                <div class="map-card selected" data-map="de_mirage" tabindex="0" role="button" aria-pressed="true" aria-label="Select de_mirage">
+                  <div style="width: 100%; aspect-ratio: 1/1; background: #182026; position: relative;">
+                    <!-- Inline SVG Radar for de_mirage: blue-grey tones -->
+                    <svg viewBox="0 0 200 200" width="100%" height="100%" style="display: block;">
+                      <!-- Ground -->
+                      <rect width="200" height="200" fill="#131a20"/>
+                      <!-- Layout paths: Palace, A site, Mid, B Apps -->
+                      <path d="M 85,175 L 115,175 L 115,145 L 165,145 L 165,65 L 130,65 L 130,90 L 105,90 L 105,70 L 130,70 L 130,40 L 70,40 L 70,65 L 35,65 L 35,115 L 65,115 L 65,145 L 85,145 Z" fill="#455463" stroke="#2c3742" stroke-width="2"/>
+                      <!-- Palace & A slope -->
+                      <rect x="145" y="85" width="18" height="55" fill="#677a8d"/>
+                      <!-- Mid / Connector / Window -->
+                      <rect x="90" y="80" width="22" height="50" fill="#677a8d"/>
+                      <rect x="80" y="65" width="30" height="15" fill="#586a7b"/>
+                      <!-- B Apartments -->
+                      <rect x="38" y="70" width="24" height="40" fill="#677a8d"/>
+                      <!-- Bombsite A -->
+                      <rect x="135" y="55" width="25" height="25" fill="#2d3945" stroke="#92a8bc" stroke-dasharray="2,2"/>
+                      <circle cx="147" cy="67" r="8" fill="#d15858"/>
+                      <text x="147" y="71" font-family="'Rajdhani', sans-serif" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">A</text>
+                      <!-- Bombsite B -->
+                      <rect x="42" y="45" width="25" height="25" fill="#2d3945" stroke="#92a8bc" stroke-dasharray="2,2"/>
+                      <circle cx="54" cy="57" r="8" fill="#d15858"/>
+                      <text x="54" y="61" font-family="'Rajdhani', sans-serif" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">B</text>
+                      <!-- T Spawn mark -->
+                      <text x="96" y="170" font-family="Verdana" font-size="8" fill="#d1a45a" font-weight="bold">T</text>
+                      <!-- CT Spawn mark -->
+                      <text x="95" y="48" font-family="Verdana" font-size="8" fill="#6f9bd1" font-weight="bold">CT</text>
+                    </svg>
+                  </div>
+                  <div class="map-label">de_mirage</div>
+                </div>
+              </div>
+              <div id="map-error" style="color: var(--vgui-red); font-size: 11px; margin-top: 6px; display: none;">
+                Select at least one map to find a match.
+              </div>
+            </div>
+
+            <!-- Find Match Action -->
+            <div style="border-top: 1px solid var(--vgui-border); padding-top: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <div style="font-size: 11px; color: var(--vgui-text-dim);">
+                Matches automatically launch when 10 players in your region are found.
+              </div>
+              <button id="find-match-btn" class="vgui-btn vgui-btn-primary" style="font-size: 14px; padding: 10px 24px;">
+                Find Match
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 2: QUEUE SCREEN
+             ========================================== -->
+        <div id="screen-queue" class="vgui-window" style="display: none;">
+          <div class="vgui-titlebar">
+            <span class="font-hud" style="color: var(--vgui-gold); font-size: 15px;">Matchmaking Queue // Searching for 5v5</span>
+            <span id="queue-region-tag" style="font-size: 11px; color: var(--vgui-text-dim);">Europe (EU)</span>
+          </div>
+
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+            <!-- Count and Bar -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <span class="font-hud" style="font-size: 20px; color: var(--vgui-gold);">
+                  Queued Players: <span id="queue-count-text">1 / 10</span>
+                </span>
+                <span style="font-size: 11px; color: var(--vgui-text-dim);">
+                  Time in queue: <span id="queue-timer" style="color: #fff; font-weight: bold;">00:00</span>
+                </span>
+              </div>
+              <div class="vgui-progress-container">
+                <div id="queue-progress-bar" class="vgui-progress-bar" style="width: 10%;"></div>
+              </div>
+            </div>
+
+            <!-- Queued Players List -->
+            <div class="vgui-inset" style="padding: 10px;">
+              <div style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: var(--vgui-text-dim); margin-bottom: 8px;">
+                Players in Queue (<span id="queue-fresh-count">1</span> Active)
+              </div>
+              <div class="vgui-well" style="max-height: 220px; overflow-y: auto;">
+                <table class="stats-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 40px;">#</th>
+                      <th>Player Name</th>
+                      <th>Rating</th>
+                      <th>Rank</th>
+                      <th>Maps</th>
+                    </tr>
+                  </thead>
+                  <tbody id="queue-players-tbody">
+                    <!-- Dynamic Rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Queue Actions & Testing Simulation helper -->
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--vgui-border); padding-top: 14px;">
+              <button id="leave-queue-btn" class="vgui-btn vgui-btn-danger">
+                Leave Queue
+              </button>
+
+              <div style="display: flex; gap: 8px;">
+                <button id="simulate-queue-btn" class="vgui-btn" style="border-color: #7c722a; color: #dac85b;" title="Instantly fill queue with 9 simulated players to trigger a match">
+                  + Simulate 9 Players (Test)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==========================================
+             SCREEN 3: MATCH SCREEN
+             ========================================== -->
+        <div id="screen-match" class="vgui-window" style="display: none;">
+          <div class="vgui-titlebar">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="font-hud" style="color: var(--vgui-gold); font-size: 16px;">Live Match // 5v5 Pug</span>
+              <span id="match-id-tag" style="font-size: 10px; color: var(--vgui-text-dim); font-family: monospace;">ID: ...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="match-map-badge" style="background: var(--vgui-well); color: var(--vgui-gold); padding: 2px 8px; font-weight: bold; font-family: 'Rajdhani', sans-serif;">de_dust2</span>
+              <span id="match-region-badge" style="color: var(--vgui-text-dim); font-size: 11px;">Europe</span>
+            </div>
+          </div>
+
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+
+            <!-- Connection & Host Info Box -->
+            <div class="vgui-inset" style="padding: 12px;">
+              <!-- Host Specific View -->
+              <div id="host-view" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <span class="font-hud" style="color: var(--vgui-gold); font-size: 14px;">
+                    ⭐ YOU ARE THE MATCH HOST
+                  </span>
+                  <span style="font-size: 11px; color: var(--vgui-text-dim);">
+                    Server Password: <strong id="host-pw-display" style="color: #fff; font-family: monospace;">......</strong>
+                  </span>
+                </div>
+                <p style="font-size: 11px; color: var(--vgui-text-dim); margin-bottom: 8px;">
+                  1. Launch your dedicated or listen server using this ready-to-run console command:
+                </p>
+                <div id="hlds-command-box" class="console-box" style="margin-bottom: 8px;">
+                  hlds.exe -console -game cstrike +port 27015 +maxplayers 11 +map de_dust2 +sv_password pug123 +hostname "PUG de_dust2"
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                  <button id="copy-hlds-btn" class="vgui-btn" style="font-size: 10px;">Copy HLDS Command</button>
+                  <span id="hlds-copy-msg" class="copy-pill" style="display: none;">Copied!</span>
+                </div>
+
+                <div style="border-top: 1px solid #282f23; padding-top: 8px;">
+                  <label for="host-addr-input" style="display: block; font-size: 11px; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; color: var(--vgui-text-dim);">
+                    2. Share Your Public IP:Port with Players
+                  </label>
+                  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <input id="host-addr-input" type="text" class="vgui-input" style="width: 220px;" placeholder="e.g. 192.168.1.100:27015" />
+                    <button id="share-addr-btn" class="vgui-btn vgui-btn-primary">Share Address</button>
+                    <span id="addr-shared-msg" style="color: var(--vgui-green); font-size: 11px; display: none;">Address broadcasted to all players!</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Peer / Non-Host View -->
+              <div id="peer-view" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <span class="font-hud" style="color: var(--vgui-gold); font-size: 14px;">
+                    Server Connection Details
+                  </span>
+                  <span style="font-size: 11px; color: var(--vgui-text-dim);">
+                    Host: <strong id="peer-host-name" style="color: #fff;">...</strong>
+                  </span>
+                </div>
+
+                <div id="peer-waiting-box" style="padding: 12px; background: var(--vgui-well); text-align: center; border: 1px dashed var(--vgui-border);">
+                  <span style="color: var(--vgui-text-dim); font-size: 12px;">
+                    Waiting for the host to share the server address...
+                  </span>
+                </div>
+
+                <div id="peer-connect-box" style="display: none;">
+                  <p style="font-size: 11px; color: var(--vgui-text-dim); margin-bottom: 6px;">
+                    Open CS 1.6 console (<code>~</code> key) and paste this connect command:
+                  </p>
+                  <div id="connect-command-box" class="console-box" style="margin-bottom: 8px;">
+                    connect 127.0.0.1:27015; password pug123
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="copy-connect-btn" class="vgui-btn vgui-btn-primary" style="font-size: 11px;">
+                      Copy Connect Command
+                    </button>
+                    <span id="connect-copy-msg" class="copy-pill" style="display: none;">Copied to clipboard!</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Balanced Rosters: CT vs T -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <!-- Counter-Terrorists (Team A) -->
+              <div class="vgui-window team-box-ct" style="padding: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; border-bottom: 1px solid #282f23; padding-bottom: 4px;">
+                  <span class="font-hud color-ct" style="font-size: 16px;">Counter-Terrorists (CT)</span>
+                  <span id="team-a-avg-elo" class="font-hud" style="font-size: 13px; color: var(--vgui-text-dim);">Avg: 1000</span>
+                </div>
+                <div class="vgui-well">
+                  <table class="stats-table">
+                    <thead>
+                      <tr>
+                        <th>Player</th>
+                        <th style="text-align: right;">Rating</th>
+                      </tr>
+                    </thead>
+                    <tbody id="team-a-tbody">
+                      <!-- Dynamic CT Players -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Terrorists (Team B) -->
+              <div class="vgui-window team-box-t" style="padding: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; border-bottom: 1px solid #282f23; padding-bottom: 4px;">
+                  <span class="font-hud color-t" style="font-size: 16px;">Terrorists (T)</span>
+                  <span id="team-b-avg-elo" class="font-hud" style="font-size: 13px; color: var(--vgui-text-dim);">Avg: 1000</span>
+                </div>
+                <div class="vgui-well">
+                  <table class="stats-table">
+                    <thead>
+                      <tr>
+                        <th>Player</th>
+                        <th style="text-align: right;">Rating</th>
+                      </tr>
+                    </thead>
+                    <tbody id="team-b-tbody">
+                      <!-- Dynamic T Players -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Result Reporting Section -->
+            <div class="vgui-inset" style="padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="font-hud" style="font-size: 15px; color: var(--vgui-gold);">
+                  Match Outcome Reporting (6 of 10 Quorum Required)
+                </span>
+                <span id="vote-quorum-summary" style="font-size: 11px; color: var(--vgui-text-dim);">
+                  0 / 6 votes
+                </span>
+              </div>
+
+              <!-- Live Quorum Tally Indicators -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
+                <div class="vgui-well" style="padding: 6px 10px; text-align: center;">
+                  <div style="font-size: 10px; color: var(--vgui-ct); text-transform: uppercase;">CT Won</div>
+                  <div id="tally-ct" class="font-hud" style="font-size: 18px; color: #fff;">0 / 6</div>
+                </div>
+                <div class="vgui-well" style="padding: 6px 10px; text-align: center;">
+                  <div style="font-size: 10px; color: var(--vgui-t); text-transform: uppercase;">T Won</div>
+                  <div id="tally-t" class="font-hud" style="font-size: 18px; color: #fff;">0 / 6</div>
+                </div>
+                <div class="vgui-well" style="padding: 6px 10px; text-align: center;">
+                  <div style="font-size: 10px; color: var(--vgui-text-dim); text-transform: uppercase;">Void Match</div>
+                  <div id="tally-void" class="font-hud" style="font-size: 18px; color: #fff;">0 / 6</div>
+                </div>
+              </div>
+
+              <!-- Voting Action Buttons (Active when match not done) -->
+              <div id="reporting-actions" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 11px; color: var(--vgui-text-dim);">
+                  Submit your report once the match has concluded:
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button id="vote-win-btn" class="vgui-btn" style="border-color: #436e2f; color: #9fe28d;">
+                    My Team Won
+                  </button>
+                  <button id="vote-loss-btn" class="vgui-btn" style="border-color: #6e2f2f; color: #e28d8d;">
+                    My Team Lost
+                  </button>
+                  <button id="vote-void-btn" class="vgui-btn">
+                    Void Match
+                  </button>
+                  <span id="my-vote-status" style="font-size: 12px; color: var(--vgui-gold); align-self: center; margin-left: 8px;"></span>
+                </div>
+
+                <!-- Simulation Helper for Testing Quorum -->
+                <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #3a4233;">
+                  <button id="simulate-quorum-btn" class="vgui-btn" style="font-size: 10px; color: #d0c473; border-color: #726829;">
+                    ⚡ Auto-Fill 5 Teammate Votes (Test)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Completed Match Outcome Display -->
+              <div id="match-completed-banner" style="display: none; padding: 12px; background: #1b2117; border: 1px solid var(--vgui-gold); margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                  <div>
+                    <h3 id="completed-winner-text" class="font-hud" style="font-size: 18px; color: var(--vgui-gold); margin: 0;">
+                      Match Concluded
+                    </h3>
+                    <div id="completed-elo-delta" style="font-size: 13px; font-weight: bold; margin-top: 2px;">
+                      Rating change: +0
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 8px;">
+                    <button id="return-setup-btn" class="vgui-btn vgui-btn-primary">
+                      Return to Setup
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer: Leave match button so nobody gets stuck -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--vgui-border); padding-top: 12px;">
+              <span style="font-size: 11px; color: var(--vgui-text-dim);">
+                Finished or cancelled? Dismiss this match and return to the main menu.
+              </span>
+              <button id="leave-match-btn" class="vgui-btn vgui-btn-danger">
+                Leave This Match
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right Sidebar: Leaderboard & Personal Match History -->
+      <aside style="display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- Top 20 Leaderboard -->
+        <div class="vgui-window">
+          <div class="vgui-titlebar">
+            <span class="font-hud" style="color: var(--vgui-gold); font-size: 14px;">Top 20 Leaderboard</span>
+            <span style="font-size: 10px; color: var(--vgui-text-dim);">Min 1 Match</span>
+          </div>
+          <div style="padding: 10px;">
+            <div class="vgui-well" style="max-height: 280px; overflow-y: auto;">
+              <table class="stats-table">
+                <thead>
+                  <tr>
+                    <th style="width: 25px;">#</th>
+                    <th>Player</th>
+                    <th>Rank</th>
+                    <th style="text-align: right;">Elo</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboard-tbody">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: var(--vgui-text-dim); padding: 12px;">
+                      Loading rankings...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personal Match History (Last 8) -->
+        <div class="vgui-window">
+          <div class="vgui-titlebar">
+            <span class="font-hud" style="color: var(--vgui-gold); font-size: 14px;">Recent Matches (Last 8)</span>
+            <span style="font-size: 10px; color: var(--vgui-text-dim);">My Record</span>
+          </div>
+          <div style="padding: 10px;">
+            <div class="vgui-well" style="max-height: 240px; overflow-y: auto;">
+              <table class="stats-table">
+                <thead>
+                  <tr>
+                    <th>Map</th>
+                    <th style="text-align: right;">Rating Delta</th>
+                  </tr>
+                </thead>
+                <tbody id="history-tbody">
+                  <tr>
+                    <td colspan="2" style="text-align: center; color: var(--vgui-text-dim); padding: 12px;">
+                      No matches played yet.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- System & Firebase Status Panel -->
+        <div class="vgui-window" style="padding: 10px; font-size: 11px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-weight: bold; color: var(--vgui-text-dim); text-transform: uppercase;">Connection</span>
+            <span id="backend-status-indicator" style="color: var(--vgui-green);">Ready</span>
+          </div>
+          <div id="backend-status-detail" style="color: var(--vgui-text-dim); line-height: 1.3;">
+            Initialized.
+          </div>
+        </div>
+
+      </aside>
+    </main>
+
+    <!-- Main Module Script with Firebase Modular SDK from pinned gstatic CDN -->
+    <script type="module">
+      import { firebaseConfig } from './firebase-config.js';
+
+      // Pinned Firebase Modular SDK imports from gstatic CDN (v11.4.0)
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js';
+      import {
+        getAuth,
+        signInAnonymously,
+        onAuthStateChanged
+      } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js';
+      import {
+        getFirestore,
+        doc,
+        setDoc,
+        getDoc,
+        updateDoc,
+        deleteDoc,
+        collection,
+        onSnapshot,
+        query,
+        where,
+        runTransaction,
+        serverTimestamp,
+        getDocs
+      } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js';
+
+      // =========================================================================
+      // Pure Logic Helpers (Mirrored from tested logic)
+      // =========================================================================
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function validateName(name) {
+        if (!name || typeof name !== 'string') return { valid: false, error: 'Name cannot be empty.' };
+        const trimmed = name.trim();
+        if (trimmed.length === 0) return { valid: false, error: 'Name cannot be blank.' };
+        if (name.length > 16) return { valid: false, error: 'Name must be 16 characters or fewer.' };
+        const validChars = /^[a-zA-Z0-9 _.-]+$/;
+        if (!validChars.test(name)) return { valid: false, error: 'Only letters, numbers, spaces, and _ . - are allowed.' };
+        return { valid: true };
+      }
+
+      function getRank(elo) {
+        const val = Math.max(100, Math.round(elo || 1000));
+        if (val >= 1500) return { name: 'Legend', class: 'rank-legend' };
+        if (val >= 1300) return { name: 'Elite', class: 'rank-elite' };
+        if (val >= 1100) return { name: 'Veteran', class: 'rank-veteran' };
+        if (val >= 900) return { name: 'Regular', class: 'rank-regular' };
+        return { name: 'Recruit', class: 'rank-recruit' };
+      }
+
+      function generatePassword(length = 6) {
+        const chars = '23456789abcdefghjkmnpqrstuvwxyz';
+        let res = '';
+        for (let i = 0; i < length; i++) {
+          res += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return res;
+      }
+
+      function computeEloDeltas(teamA, teamB, outcome) {
+        const deltas = {};
+        if (outcome === 'X') {
+          for (const p of [...teamA, ...teamB]) deltas[p.id] = 0;
+          return deltas;
+        }
+        const avgA = teamA.reduce((s, p) => s + (p.e || 1000), 0) / (teamA.length || 1);
+        const avgB = teamB.reduce((s, p) => s + (p.e || 1000), 0) / (teamB.length || 1);
+        const expectedA = 1 / (1 + Math.pow(10, (avgB - avgA) / 400));
+        const expectedB = 1 - expectedA;
+        const actualA = outcome === 'A' ? 1 : 0;
+        const actualB = outcome === 'B' ? 1 : 0;
+        const K = 24;
+        const baseDeltaA = Math.round(K * (actualA - expectedA));
+        const baseDeltaB = Math.round(K * (actualB - expectedB));
+
+        for (const p of teamA) {
+          const cur = p.e || 1000;
+          let d = baseDeltaA;
+          if (cur + d < 100) d = 100 - cur;
+          deltas[p.id] = d;
+        }
+        for (const p of teamB) {
+          const cur = p.e || 1000;
+          let d = baseDeltaB;
+          if (cur + d < 100) d = 100 - cur;
+          deltas[p.id] = d;
+        }
+        return deltas;
+      }
+
+      // =========================================================================
+      // Application State
+      // =========================================================================
+      let currentUser = null;
+      let initialProfile = {
+        name: localStorage.getItem('cs16_player_name') || 'Player_' + Math.floor(1000 + Math.random() * 9000),
+        elo: 1000,
+        w: 0,
+        l: 0,
+        hist: [],
+        lastMatch: ''
+      };
+      const savedLocalProfile = localStorage.getItem('cs16_player_profile');
+      if (savedLocalProfile) {
+        try { initialProfile = { ...initialProfile, ...JSON.parse(savedLocalProfile) }; } catch(e){}
+      }
+      let playerProfile = initialProfile;
+      let selectedRegion = 'Europe';
+      let selectedMaps = ['de_inferno', 'de_dust2', 'de_mirage'];
+      let isQueued = false;
+      let queueJoinedTime = null;
+      let queueHeartbeatTimer = null;
+      let queueElapsedTimer = null;
+      let currentMatch = null;
+      let currentMatchUnsub = null;
+      let reportsUnsub = null;
+      let myVote = null;
+      let isSandboxMode = false;
+
+      // DOM Elements
+      const hudName = document.getElementById('hud-name');
+      const hudElo = document.getElementById('hud-elo');
+      const hudRank = document.getElementById('hud-rank');
+      const hudRecord = document.getElementById('hud-record');
+      const statusBanner = document.getElementById('status-banner');
+      const backendIndicator = document.getElementById('backend-status-indicator');
+      const backendDetail = document.getElementById('backend-status-detail');
+
+      const screenSetup = document.getElementById('screen-setup');
+      const screenQueue = document.getElementById('screen-queue');
+      const screenMatch = document.getElementById('screen-match');
+
+      const playerNameInput = document.getElementById('player-name-input');
+      const saveNameBtn = document.getElementById('save-name-btn');
+      const nameError = document.getElementById('name-error');
+      const regionBtns = document.querySelectorAll('.region-btn');
+      const regionWaitingBadge = document.getElementById('region-waiting-badge');
+      const mapCards = document.querySelectorAll('.map-card');
+      const mapError = document.getElementById('map-error');
+      const findMatchBtn = document.getElementById('find-match-btn');
+
+      const queueCountText = document.getElementById('queue-count-text');
+      const queueProgressBar = document.getElementById('queue-progress-bar');
+      const queueTimer = document.getElementById('queue-timer');
+      const queuePlayersTbody = document.getElementById('queue-players-tbody');
+      const queueFreshCount = document.getElementById('queue-fresh-count');
+      const queueRegionTag = document.getElementById('queue-region-tag');
+      const leaveQueueBtn = document.getElementById('leave-queue-btn');
+      const simulateQueueBtn = document.getElementById('simulate-queue-btn');
+
+      const matchIdTag = document.getElementById('match-id-tag');
+      const matchMapBadge = document.getElementById('match-map-badge');
+      const matchRegionBadge = document.getElementById('match-region-badge');
+      const hostView = document.getElementById('host-view');
+      const peerView = document.getElementById('peer-view');
+      const hostPwDisplay = document.getElementById('host-pw-display');
+      const hldsCommandBox = document.getElementById('hlds-command-box');
+      const copyHldsBtn = document.getElementById('copy-hlds-btn');
+      const hldsCopyMsg = document.getElementById('hlds-copy-msg');
+      const hostAddrInput = document.getElementById('host-addr-input');
+      const shareAddrBtn = document.getElementById('share-addr-btn');
+      const addrSharedMsg = document.getElementById('addr-shared-msg');
+      const peerWaitingBox = document.getElementById('peer-waiting-box');
+      const peerConnectBox = document.getElementById('peer-connect-box');
+      const peerHostName = document.getElementById('peer-host-name');
+      const connectCommandBox = document.getElementById('connect-command-box');
+      const copyConnectBtn = document.getElementById('copy-connect-btn');
+      const connectCopyMsg = document.getElementById('connect-copy-msg');
+
+      const teamAAvgElo = document.getElementById('team-a-avg-elo');
+      const teamBAvgElo = document.getElementById('team-b-avg-elo');
+      const teamATbody = document.getElementById('team-a-tbody');
+      const teamBTbody = document.getElementById('team-b-tbody');
+
+      const voteQuorumSummary = document.getElementById('vote-quorum-summary');
+      const tallyCt = document.getElementById('tally-ct');
+      const tallyT = document.getElementById('tally-t');
+      const tallyVoid = document.getElementById('tally-void');
+      const voteWinBtn = document.getElementById('vote-win-btn');
+      const voteLossBtn = document.getElementById('vote-loss-btn');
+      const voteVoidBtn = document.getElementById('vote-void-btn');
+      const myVoteStatus = document.getElementById('my-vote-status');
+      const simulateQuorumBtn = document.getElementById('simulate-quorum-btn');
+      const matchCompletedBanner = document.getElementById('match-completed-banner');
+      const completedWinnerText = document.getElementById('completed-winner-text');
+      const completedEloDelta = document.getElementById('completed-elo-delta');
+      const returnSetupBtn = document.getElementById('return-setup-btn');
+      const leaveMatchBtn = document.getElementById('leave-match-btn');
+
+      const leaderboardTbody = document.getElementById('leaderboard-tbody');
+      const historyTbody = document.getElementById('history-tbody');
+
+      // Initialize Inputs
+      playerNameInput.value = playerProfile.name;
+
+      function showBanner(text, type = 'info') {
+        statusBanner.className = `vgui-banner vgui-banner-${type}`;
+        statusBanner.innerHTML = text;
+        statusBanner.style.display = 'block';
+      }
+
+      function updateHud() {
+        try {
+          localStorage.setItem('cs16_player_profile', JSON.stringify(playerProfile));
+        } catch(e){}
+        hudName.textContent = playerProfile.name || 'Anonymous';
+        hudElo.textContent = Math.round(playerProfile.elo || 1000);
+        const rank = getRank(playerProfile.elo);
+        hudRank.textContent = rank.name;
+        hudRank.className = `rank-badge ${rank.class}`;
+        const total = (playerProfile.w || 0) + (playerProfile.l || 0);
+        const winrate = total > 0 ? Math.round((playerProfile.w / total) * 100) : 0;
+        hudRecord.textContent = `${playerProfile.w || 0}W - ${playerProfile.l || 0}L (${winrate}%)`;
+        renderHistory();
+      }
+
+      function renderHistory() {
+        if (!playerProfile.hist || playerProfile.hist.length === 0) {
+          historyTbody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--vgui-text-dim); padding: 12px;">No matches played yet.</td></tr>`;
+          return;
+        }
+        const recent = playerProfile.hist.slice(0, 8);
+        historyTbody.innerHTML = recent.map(item => {
+          const delta = item.d || 0;
+          const sign = delta > 0 ? `+${delta}` : `${delta}`;
+          const deltaColor = delta > 0 ? 'var(--vgui-green)' : delta < 0 ? 'var(--vgui-red)' : 'var(--vgui-text-dim)';
+          return `
+            <tr>
+              <td style="font-family: 'Rajdhani', sans-serif; font-weight: bold; color: var(--vgui-gold);">${escapeHtml(item.map || 'de_dust2')}</td>
+              <td style="text-align: right; font-weight: bold; color: ${deltaColor};">${sign} Elo</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function switchScreen(screenName) {
+        screenSetup.style.display = screenName === 'setup' ? 'block' : 'none';
+        screenQueue.style.display = screenName === 'queue' ? 'block' : 'none';
+        screenMatch.style.display = screenName === 'match' ? 'block' : 'none';
+      }
+
+      // =========================================================================
+      // Firebase vs Local Sandbox Initialization
+      // =========================================================================
+      let app = null;
+      let auth = null;
+      let db = null;
+
+      const isPlaceholderConfig =
+        !firebaseConfig ||
+        !firebaseConfig.apiKey ||
+        firebaseConfig.apiKey === 'YOUR_API_KEY' ||
+        firebaseConfig.projectId === 'YOUR_PROJECT_ID';
+
+      // Sandbox Mock Database for immediate local testing & offline preview
+      const SandboxDB = {
+        players: {},
+        queue: {},
+        matches: {},
+        reports: {},
+        listeners: [],
+        _isNotifying: false,
+        _needsNotify: false,
+
+        init() {
+          const savedPlayers = localStorage.getItem('cs16_sandbox_players');
+          if (savedPlayers) {
+            try { this.players = JSON.parse(savedPlayers); } catch(e){}
+          }
+          const savedMatches = localStorage.getItem('cs16_sandbox_matches');
+          if (savedMatches) {
+            try { this.matches = JSON.parse(savedMatches); } catch(e){}
+          }
+          const savedQueue = localStorage.getItem('cs16_sandbox_queue');
+          if (savedQueue) {
+            try { this.queue = JSON.parse(savedQueue); } catch(e){}
+          }
+          const savedReports = localStorage.getItem('cs16_sandbox_reports');
+          if (savedReports) {
+            try { this.reports = JSON.parse(savedReports); } catch(e){}
+          }
+        },
+
+        save() {
+          localStorage.setItem('cs16_sandbox_players', JSON.stringify(this.players));
+          localStorage.setItem('cs16_sandbox_matches', JSON.stringify(this.matches));
+          localStorage.setItem('cs16_sandbox_queue', JSON.stringify(this.queue));
+          localStorage.setItem('cs16_sandbox_reports', JSON.stringify(this.reports));
+          this.notify();
+        },
+
+        notify() {
+          if (this._isNotifying) {
+            this._needsNotify = true;
+            return;
+          }
+          this._isNotifying = true;
+          try {
+            do {
+              this._needsNotify = false;
+              const copy = [...this.listeners];
+              for (const cb of copy) {
+                try { cb(); } catch(e){ console.error('Listener error:', e); }
+              }
+            } while (this._needsNotify);
+          } finally {
+            this._isNotifying = false;
+          }
+        },
+
+        subscribe(cb) {
+          this.listeners.push(cb);
+          return () => {
+            this.listeners = this.listeners.filter(l => l !== cb);
+          };
+        }
+      };
+
+      async function initializeBackend() {
+        if (isPlaceholderConfig) {
+          isSandboxMode = true;
+          SandboxDB.init();
+          backendIndicator.textContent = 'Sandbox Mode';
+          backendIndicator.style.color = 'var(--vgui-gold)';
+          backendDetail.textContent = 'Using local simulation sandbox (replace keys in firebase-config.js for live Firebase).';
+          showBanner(
+            `<strong>Simulation Sandbox Mode Active:</strong> Running with local state. You can test queues, 10-player snake draft, server hosting, and Elo ratings! To use real multi-player Firestore, paste your credentials into <code>firebase-config.js</code>.`,
+            'info'
+          );
+
+          // Anonymous sandbox user
+          let localUid = localStorage.getItem('cs16_sandbox_uid');
+          if (!localUid) {
+            localUid = 'user_' + Math.random().toString(36).substring(2, 10);
+            localStorage.setItem('cs16_sandbox_uid', localUid);
+          }
+          currentUser = { uid: localUid, isAnonymous: true };
+
+          if (SandboxDB.players[localUid]) {
+            playerProfile = { ...playerProfile, ...SandboxDB.players[localUid] };
+          } else {
+            SandboxDB.players[localUid] = {
+              name: playerProfile.name,
+              elo: 1000,
+              w: 0,
+              l: 0,
+              hist: [],
+              lastMatch: ''
+            };
+            SandboxDB.save();
+          }
+
+          updateHud();
+          initSandboxListeners();
+          return;
+        }
+
+        // Real Firebase Mode
+        try {
+          app = initializeApp(firebaseConfig);
+          auth = getAuth(app);
+          db = getFirestore(app);
+
+          backendIndicator.textContent = 'Connecting...';
+          backendIndicator.style.color = 'var(--vgui-gold)';
+
+          signInAnonymously(auth).catch((err) => {
+            console.error('Anonymous sign in error:', err);
+            let msg = err.message;
+            if (err.code === 'auth/admin-restricted-operation' || err.code === 'auth/operation-not-allowed') {
+              msg = 'Anonymous sign-in is off. Turn it on in Firebase Console -> Authentication -> Sign-in method.';
+            }
+            showBanner(`<strong>Auth Error:</strong> ${escapeHtml(msg)}`, 'error');
+            backendIndicator.textContent = 'Auth Failed';
+            backendIndicator.style.color = 'var(--vgui-red)';
+          });
+
+          onAuthStateChanged(auth, async (user) => {
+            if (user) {
+              currentUser = user;
+              backendIndicator.textContent = 'Connected (Firebase)';
+              backendIndicator.style.color = 'var(--vgui-green)';
+              backendDetail.textContent = `UID: ${user.uid.substring(0, 8)}... (${firebaseConfig.projectId})`;
+
+              // Load or create player doc
+              const playerRef = doc(db, 'players', user.uid);
+              try {
+                const snap = await getDoc(playerRef);
+                if (snap.exists()) {
+                  playerProfile = { ...playerProfile, ...snap.data() };
+                } else {
+                  await setDoc(playerRef, {
+                    name: playerProfile.name,
+                    elo: 1000,
+                    w: 0,
+                    l: 0,
+                    hist: [],
+                    lastMatch: ''
+                  });
+                }
+              } catch(e) {
+                console.warn('Could not read player doc:', e);
+              }
+
+              updateHud();
+              initFirestoreListeners();
+            }
+          });
+        } catch (err) {
+          console.error('Firebase init failed:', err);
+          showBanner(`<strong>Firebase Init Failed:</strong> ${escapeHtml(err.message)}. Falling back to Sandbox Mode.`, 'warning');
+          isSandboxMode = true;
+          SandboxDB.init();
+          currentUser = { uid: 'user_fallback_' + Math.random().toString(36).substring(2, 6) };
+          updateHud();
+          initSandboxListeners();
+        }
+      }
+
+      // =========================================================================
+      // Event Handlers: Profile & Settings
+      // =========================================================================
+      saveNameBtn.addEventListener('click', async () => {
+        const val = playerNameInput.value;
+        const res = validateName(val);
+        if (!res.valid) {
+          nameError.textContent = res.error;
+          nameError.style.display = 'block';
+          return;
+        }
+        nameError.style.display = 'none';
+        playerProfile.name = val.trim();
+        localStorage.setItem('cs16_player_name', playerProfile.name);
+        updateHud();
+
+        if (currentUser) {
+          if (!isSandboxMode && db) {
+            try {
+              await setDoc(doc(db, 'players', currentUser.uid), { name: playerProfile.name }, { merge: true });
+            } catch(e) {
+              console.warn('Failed to update name in Firestore:', e);
+            }
+          } else {
+            if (SandboxDB.players[currentUser.uid]) {
+              SandboxDB.players[currentUser.uid].name = playerProfile.name;
+              SandboxDB.save();
+            }
+          }
+        }
+      });
+
+      regionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          regionBtns.forEach(b => b.classList.remove('active-region', 'vgui-btn-primary'));
+          btn.classList.add('active-region', 'vgui-btn-primary');
+          selectedRegion = btn.dataset.region;
+          updateRegionWaitingCount();
+        });
+      });
+      // Set initial active button
+      document.querySelector(`.region-btn[data-region="${selectedRegion}"]`)?.classList.add('vgui-btn-primary');
+
+      mapCards.forEach(card => {
+        card.addEventListener('click', () => {
+          const map = card.dataset.map;
+          if (selectedMaps.includes(map)) {
+            if (selectedMaps.length === 1) {
+              mapError.style.display = 'block';
+              return;
+            }
+            selectedMaps = selectedMaps.filter(m => m !== map);
+            card.classList.remove('selected');
+            card.setAttribute('aria-pressed', 'false');
+          } else {
+            selectedMaps.push(map);
+            card.classList.add('selected');
+            card.setAttribute('aria-pressed', 'true');
+          }
+          mapError.style.display = 'none';
+        });
+
+        card.addEventListener('keydown', (e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            card.click();
+          }
+        });
+      });
+
+      findMatchBtn.addEventListener('click', () => {
+        const val = playerNameInput.value;
+        const res = validateName(val);
+        if (!res.valid) {
+          nameError.textContent = res.error;
+          nameError.style.display = 'block';
+          playerNameInput.focus();
+          return;
+        }
+        nameError.style.display = 'none';
+        if (selectedMaps.length === 0) {
+          mapError.style.display = 'block';
+          return;
+        }
+
+        playerProfile.name = val.trim();
+        localStorage.setItem('cs16_player_name', playerProfile.name);
+        updateHud();
+        enterQueue();
+      });
+
+      leaveQueueBtn.addEventListener('click', () => {
+        leaveQueue();
+      });
+
+      // Best effort cleanup on leave or unload
+      window.addEventListener('pagehide', () => {
+        if (isQueued && currentUser) {
+          if (!isSandboxMode && db) {
+            deleteDoc(doc(db, 'queue', currentUser.uid)).catch(()=>{});
+          } else {
+            delete SandboxDB.queue[currentUser.uid];
+            SandboxDB.save();
+          }
+        }
+      });
+
+      // =========================================================================
+      // Matchmaking Queue Flow
+      // =========================================================================
+      async function enterQueue() {
+        if (!currentUser) {
+          showBanner('Still authenticating with matchmaking service. Please wait a moment...', 'warning');
+          return;
+        }
+        isQueued = true;
+        queueJoinedTime = Date.now();
+        queueRegionTag.textContent = `${selectedRegion}`;
+        switchScreen('queue');
+        startQueueTimers();
+
+        // Write queue doc
+        await updateQueuePresence();
+
+        // Register heartbeat every 5s
+        queueHeartbeatTimer = setInterval(() => {
+          if (isQueued) updateQueuePresence();
+        }, 5000);
+      }
+
+      async function leaveQueue() {
+        isQueued = false;
+        clearInterval(queueHeartbeatTimer);
+        clearInterval(queueElapsedTimer);
+        queueTimer.textContent = '00:00';
+        switchScreen('setup');
+
+        if (currentUser) {
+          if (!isSandboxMode && db) {
+            try {
+              await deleteDoc(doc(db, 'queue', currentUser.uid));
+            } catch(e) {
+              console.warn('Failed to delete queue doc:', e);
+            }
+          } else {
+            delete SandboxDB.queue[currentUser.uid];
+            SandboxDB.save();
+          }
+        }
+      }
+
+      async function updateQueuePresence() {
+        if (!currentUser || !isQueued) return;
+        const queueEntry = {
+          name: playerProfile.name,
+          elo: playerProfile.elo || 1000,
+          region: selectedRegion,
+          maps: selectedMaps,
+          seen: Date.now()
+        };
+
+        if (!isSandboxMode && db) {
+          try {
+            await setDoc(doc(db, 'queue', currentUser.uid), {
+              ...queueEntry,
+              joined: serverTimestamp()
+            });
+          } catch(e) {
+            console.warn('Queue presence update error:', e);
+          }
+        } else {
+          SandboxDB.queue[currentUser.uid] = {
+            ...queueEntry,
+            joined: SandboxDB.queue[currentUser.uid]?.joined || Date.now()
+          };
+          SandboxDB.save();
+        }
+      }
+
+      function startQueueTimers() {
+        clearInterval(queueElapsedTimer);
+        queueElapsedTimer = setInterval(() => {
+          if (!queueJoinedTime) return;
+          const sec = Math.floor((Date.now() - queueJoinedTime) / 1000);
+          const m = String(Math.floor(sec / 60)).padStart(2, '0');
+          const s = String(sec % 60).padStart(2, '0');
+          queueTimer.textContent = `${m}:${s}`;
+        }, 1000);
+      }
+
+      function updateRegionWaitingCount(freshCount = 0) {
+        regionWaitingBadge.textContent = `Waiting in ${selectedRegion}: ${freshCount} / 10`;
+      }
+
+      // =========================================================================
+      // Matchmaking Logic: 10 Players -> Snake Draft & Transaction
+      // =========================================================================
+      let isCreatingMatch = false;
+
+      async function handleQueueUpdate(queueEntries) {
+        const now = Date.now();
+        // Filter: same region and seen within last 30s
+        const fresh = queueEntries.filter(e => {
+          return e.region === selectedRegion && (now - (e.seen || 0)) <= 30000;
+        });
+
+        // Sort by joined time ascending, then uid
+        fresh.sort((a, b) => {
+          const tA = (a.joined?.toMillis ? a.joined.toMillis() : a.joined) || 0;
+          const tB = (b.joined?.toMillis ? b.joined.toMillis() : b.joined) || 0;
+          if (tA !== tB) return tA - tB;
+          return a.id.localeCompare(b.id);
+        });
+
+        updateRegionWaitingCount(fresh.length);
+
+        if (isQueued) {
+          const count = Math.min(fresh.length, 10);
+          queueCountText.textContent = `${count} / 10`;
+          queueProgressBar.style.width = `${(count / 10) * 100}%`;
+          queueFreshCount.textContent = `${fresh.length}`;
+
+          queuePlayersTbody.innerHTML = fresh.map((p, idx) => {
+            const rank = getRank(p.elo);
+            const isMe = currentUser && p.id === currentUser.uid;
+            const mapsText = (p.maps || []).map(m => m.replace('de_', '')).join(', ');
+            return `
+              <tr style="${isMe ? 'background: rgba(196, 181, 80, 0.15);' : ''}">
+                <td style="color: var(--vgui-gold); font-weight: bold;">${idx + 1}</td>
+                <td style="font-weight: bold; color: ${isMe ? 'var(--vgui-gold)' : '#fff'};">
+                  ${escapeHtml(p.name)} ${isMe ? '(You)' : ''}
+                </td>
+                <td class="font-hud" style="color: var(--vgui-gold);">${Math.round(p.elo || 1000)}</td>
+                <td><span class="rank-badge ${rank.class}">${rank.name}</span></td>
+                <td style="color: var(--vgui-text-dim); font-size: 11px;">${escapeHtml(mapsText)}</td>
+              </tr>
+            `;
+          }).join('');
+
+          // If >= 10 fresh players, try to create match if we are in the first 10
+          if (fresh.length >= 10 && currentUser && !isCreatingMatch) {
+            const top10 = fresh.slice(0, 10);
+            const myPos = top10.findIndex(p => p.id === currentUser.uid);
+            if (myPos !== -1) {
+              // Delay proportional to position (e.g. 50ms, 250ms, 450ms...)
+              const delay = myPos * 200 + 50;
+              setTimeout(() => {
+                if (isQueued && !isCreatingMatch) {
+                  attemptMatchCreation(top10);
+                }
+              }, delay);
+            }
+          }
+        }
+      }
+
+      async function attemptMatchCreation(top10) {
+        isCreatingMatch = true;
+        try {
+          // Prepare match data:
+          // 1. Balance teams with Snake Draft: sort rating descending -> A,B,B,A,A,B,B,A,A,B
+          const sortedByRating = [...top10].sort((a, b) => (b.elo || 1000) - (a.elo || 1000));
+          const snakePattern = ['A', 'B', 'B', 'A', 'A', 'B', 'B', 'A', 'A', 'B'];
+          const teamA = [];
+          const teamB = [];
+
+          sortedByRating.forEach((p, idx) => {
+            const team = snakePattern[idx];
+            const pInfo = { id: p.id, n: p.name, e: p.elo || 1000 };
+            if (team === 'A') teamA.push(pInfo);
+            else teamB.push(pInfo);
+          });
+
+          // 2. Map choice by votes
+          const mapTally = { de_inferno: 0, de_dust2: 0, de_mirage: 0 };
+          top10.forEach(p => {
+            if (Array.isArray(p.maps)) {
+              p.maps.forEach(m => {
+                if (mapTally[m] !== undefined) mapTally[m]++;
+              });
+            }
+          });
+          let maxV = -1;
+          let topMaps = [];
+          for (const m of ['de_inferno', 'de_dust2', 'de_mirage']) {
+            if (mapTally[m] > maxV) {
+              maxV = mapTally[m];
+              topMaps = [m];
+            } else if (mapTally[m] === maxV) {
+              topMaps.push(m);
+            }
+          }
+          const chosenMap = topMaps[Math.floor(Math.random() * topMaps.length)] || 'de_dust2';
+
+          // 3. Random host among the 10 players
+          const chosenHost = top10[Math.floor(Math.random() * top10.length)].id;
+          const pw = generatePassword(6);
+
+          const matchData = {
+            region: selectedRegion,
+            map: chosenMap,
+            players: top10.map(p => ({ id: p.id, n: p.name, e: p.elo || 1000 })),
+            pids: top10.map(p => p.id),
+            a: teamA.map(p => p.id),
+            b: teamB.map(p => p.id),
+            host: chosenHost,
+            pw: pw,
+            addr: '',
+            done: false,
+            result: null,
+            created: isSandboxMode ? Date.now() : serverTimestamp()
+          };
+
+          if (!isSandboxMode && db) {
+            // Firestore atomic transaction
+            await runTransaction(db, async (transaction) => {
+              // Re-read all 10 queue docs
+              const queueDocs = [];
+              for (const p of top10) {
+                const qRef = doc(db, 'queue', p.id);
+                const qSnap = await transaction.get(qRef);
+                if (!qSnap.exists()) {
+                  throw new Error(`Player ${p.id} no longer in queue.`);
+                }
+                const data = qSnap.data();
+                if (Date.now() - (data.seen || 0) > 30000) {
+                  throw new Error(`Player ${p.id} queue entry stale.`);
+                }
+                queueDocs.push(qRef);
+              }
+
+              // Create match doc
+              const newMatchRef = doc(collection(db, 'matches'));
+              transaction.set(newMatchRef, matchData);
+
+              // Delete the 10 queue docs
+              for (const qRef of queueDocs) {
+                transaction.delete(qRef);
+              }
+            });
+          } else {
+            // Sandbox transaction
+            // Confirm all 10 exist
+            for (const p of top10) {
+              if (!SandboxDB.queue[p.id]) throw new Error('Player left queue');
+            }
+            const matchId = 'match_' + Date.now().toString(36);
+            SandboxDB.matches[matchId] = { id: matchId, ...matchData };
+            // Delete queue
+            for (const p of top10) {
+              delete SandboxDB.queue[p.id];
+            }
+            SandboxDB.save();
+          }
+        } catch(err) {
+          // Transaction conflict or someone else created the match first: do nothing
+          console.log('Match creation transaction result:', err.message);
+        } finally {
+          isCreatingMatch = false;
+        }
+      }
+
+      // =========================================================================
+      // Match Screen Flow & Server Commands
+      // =========================================================================
+      function enterMatch(matchDoc) {
+        if (!currentUser) return;
+        const isSameMatch = currentMatch && currentMatch.id === matchDoc.id;
+        currentMatch = matchDoc;
+        isQueued = false;
+        clearInterval(queueHeartbeatTimer);
+        clearInterval(queueElapsedTimer);
+
+        switchScreen('match');
+
+        matchIdTag.textContent = `ID: ${matchDoc.id.substring(0, 10)}`;
+        matchMapBadge.textContent = matchDoc.map;
+        matchRegionBadge.textContent = matchDoc.region;
+
+        const isHost = matchDoc.host === currentUser.uid;
+        if (isHost) {
+          hostView.style.display = 'block';
+          peerView.style.display = 'none';
+          hostPwDisplay.textContent = matchDoc.pw;
+          const hldsCmd = `hlds.exe -console -game cstrike +port 27015 +maxplayers 11 +map ${matchDoc.map} +sv_password ${matchDoc.pw} +hostname "PUG ${matchDoc.map}"`;
+          hldsCommandBox.textContent = hldsCmd;
+
+          // Fetch public IP if input is empty
+          if (!hostAddrInput.value) {
+            fetch('https://api.ipify.org')
+              .then(r => r.text())
+              .then(ip => {
+                const clean = ip ? ip.trim() : '';
+                if (clean && clean.length <= 45) {
+                  hostAddrInput.value = `${clean}:27015`;
+                } else {
+                  hostAddrInput.value = '127.0.0.1:27015';
+                }
+              })
+              .catch(() => {
+                hostAddrInput.value = '127.0.0.1:27015';
+              });
+          }
+        } else {
+          hostView.style.display = 'none';
+          peerView.style.display = 'block';
+          const hostPlayer = matchDoc.players.find(p => p.id === matchDoc.host);
+          peerHostName.textContent = hostPlayer ? hostPlayer.n : 'Selected Host';
+
+          if (matchDoc.addr) {
+            peerWaitingBox.style.display = 'none';
+            peerConnectBox.style.display = 'block';
+            connectCommandBox.textContent = `connect ${matchDoc.addr}; password ${matchDoc.pw}`;
+          } else {
+            peerWaitingBox.style.display = 'block';
+            peerConnectBox.style.display = 'none';
+          }
+        }
+
+        // Render Team Rosters
+        const teamAPlayers = matchDoc.players.filter(p => matchDoc.a.includes(p.id));
+        const teamBPlayers = matchDoc.players.filter(p => matchDoc.b.includes(p.id));
+
+        const avgA = Math.round(teamAPlayers.reduce((s, p) => s + (p.e || 1000), 0) / (teamAPlayers.length || 1));
+        const avgB = Math.round(teamBPlayers.reduce((s, p) => s + (p.e || 1000), 0) / (teamBPlayers.length || 1));
+        teamAAvgElo.textContent = `Avg: ${avgA}`;
+        teamBAvgElo.textContent = `Avg: ${avgB}`;
+
+        teamATbody.innerHTML = teamAPlayers.map(p => {
+          const isMe = p.id === currentUser.uid;
+          const isHostBadge = p.id === matchDoc.host ? ' ⭐' : '';
+          return `
+            <tr style="${isMe ? 'background: rgba(111, 155, 209, 0.15);' : ''}">
+              <td style="color: var(--vgui-ct); font-weight: bold;">
+                ${escapeHtml(p.n)}${isHostBadge} ${isMe ? '(You)' : ''}
+              </td>
+              <td class="font-hud" style="text-align: right; color: var(--vgui-gold);">${Math.round(p.e || 1000)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        teamBTbody.innerHTML = teamBPlayers.map(p => {
+          const isMe = p.id === currentUser.uid;
+          const isHostBadge = p.id === matchDoc.host ? ' ⭐' : '';
+          return `
+            <tr style="${isMe ? 'background: rgba(209, 164, 90, 0.15);' : ''}">
+              <td style="color: var(--vgui-t); font-weight: bold;">
+                ${escapeHtml(p.n)}${isHostBadge} ${isMe ? '(You)' : ''}
+              </td>
+              <td class="font-hud" style="text-align: right; color: var(--vgui-gold);">${Math.round(p.e || 1000)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        // Listen for reports only if new match
+        if (!isSameMatch) {
+          subscribeToReports(matchDoc.id);
+        }
+
+        // Check if already finished
+        if (matchDoc.done && matchDoc.result) {
+          handleMatchFinished(matchDoc);
+        }
+      }
+
+      // Share address handler
+      shareAddrBtn.addEventListener('click', async () => {
+        if (!currentMatch || !currentUser) return;
+        const addr = hostAddrInput.value.trim();
+        if (!addr) return;
+
+        if (!isSandboxMode && db) {
+          try {
+            await updateDoc(doc(db, 'matches', currentMatch.id), { addr: addr });
+            addrSharedMsg.style.display = 'inline';
+            setTimeout(() => { addrSharedMsg.style.display = 'none'; }, 3000);
+          } catch(e) {
+            console.error('Failed to share address:', e);
+          }
+        } else {
+          if (SandboxDB.matches[currentMatch.id]) {
+            SandboxDB.matches[currentMatch.id].addr = addr;
+            SandboxDB.save();
+            addrSharedMsg.style.display = 'inline';
+            setTimeout(() => { addrSharedMsg.style.display = 'none'; }, 3000);
+          }
+        }
+      });
+
+      // Copy helpers
+      copyHldsBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(hldsCommandBox.textContent.trim()).then(() => {
+          hldsCopyMsg.style.display = 'inline-block';
+          setTimeout(() => { hldsCopyMsg.style.display = 'none'; }, 2000);
+        });
+      });
+
+      copyConnectBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(connectCommandBox.textContent.trim()).then(() => {
+          connectCopyMsg.style.display = 'inline-block';
+          setTimeout(() => { connectCopyMsg.style.display = 'none'; }, 2000);
+        });
+      });
+
+      // =========================================================================
+      // Quorum & Voting Flow
+      // =========================================================================
+      function subscribeToReports(matchId) {
+        if (reportsUnsub) { reportsUnsub(); reportsUnsub = null; }
+
+        if (!isSandboxMode && db) {
+          const reportsCol = collection(db, 'matches', matchId, 'reports');
+          reportsUnsub = onSnapshot(reportsCol, (snap) => {
+            const reports = [];
+            snap.forEach(d => reports.push({ id: d.id, ...d.data() }));
+            processReports(reports);
+          });
+        } else {
+          const unsub = SandboxDB.subscribe(() => {
+            const list = [];
+            const prefix = `${matchId}_`;
+            for (const key in SandboxDB.reports) {
+              if (key.startsWith(prefix)) {
+                list.push({ id: key.replace(prefix, ''), ...SandboxDB.reports[key] });
+              }
+            }
+            processReports(list);
+          });
+          reportsUnsub = unsub;
+          // Initial trigger directly without notify recursion
+          const list = [];
+          const prefix = `${matchId}_`;
+          for (const key in SandboxDB.reports) {
+            if (key.startsWith(prefix)) {
+              list.push({ id: key.replace(prefix, ''), ...SandboxDB.reports[key] });
+            }
+          }
+          processReports(list);
+        }
+      }
+
+      function processReports(reports) {
+        if (!currentMatch) return;
+
+        let votesA = 0;
+        let votesB = 0;
+        let votesX = 0;
+
+        reports.forEach(r => {
+          if (r.w === 'A') votesA++;
+          else if (r.w === 'B') votesB++;
+          else if (r.w === 'X') votesX++;
+
+          if (currentUser && r.id === currentUser.uid) {
+            myVote = r.w;
+            const label = r.w === 'A' ? 'CT Won' : r.w === 'B' ? 'T Won' : 'Void Match';
+            myVoteStatus.textContent = `Your report: ${label}`;
+          }
+        });
+
+        tallyCt.textContent = `${votesA} / 6`;
+        tallyT.textContent = `${votesB} / 6`;
+        tallyVoid.textContent = `${votesX} / 6`;
+        const totalVotes = reports.length;
+        voteQuorumSummary.textContent = `${totalVotes} / 10 reported (6 needed)`;
+
+        // Check 6-vote quorum
+        let winningOutcome = null;
+        if (votesA >= 6) winningOutcome = 'A';
+        else if (votesB >= 6) winningOutcome = 'B';
+        else if (votesX >= 6) winningOutcome = 'X';
+
+        if (winningOutcome && !currentMatch.done) {
+          finalizeMatch(currentMatch, winningOutcome);
+        }
+      }
+
+      async function submitReport(outcome) {
+        if (!currentMatch || !currentUser || currentMatch.done) return;
+        const myUid = currentUser.uid;
+        if (!currentMatch.pids.includes(myUid)) return;
+
+        if (!isSandboxMode && db) {
+          try {
+            await setDoc(doc(db, 'matches', currentMatch.id, 'reports', myUid), { w: outcome });
+          } catch(e) {
+            console.error('Failed to submit report:', e);
+          }
+        } else {
+          SandboxDB.reports[`${currentMatch.id}_${myUid}`] = { w: outcome };
+          SandboxDB.save();
+        }
+      }
+
+      voteWinBtn.addEventListener('click', () => {
+        if (!currentMatch || !currentUser) return;
+        const isTeamA = currentMatch.a.includes(currentUser.uid);
+        submitReport(isTeamA ? 'A' : 'B');
+      });
+
+      voteLossBtn.addEventListener('click', () => {
+        if (!currentMatch || !currentUser) return;
+        const isTeamA = currentMatch.a.includes(currentUser.uid);
+        submitReport(isTeamA ? 'B' : 'A');
+      });
+
+      voteVoidBtn.addEventListener('click', () => {
+        submitReport('X');
+      });
+
+      // Simulation button to vote for 5 teammates/opponents for instant testing
+      simulateQuorumBtn.addEventListener('click', () => {
+        if (!currentMatch || !currentUser) return;
+        const isTeamA = currentMatch.a.includes(currentUser.uid);
+        const myTeam = isTeamA ? currentMatch.a : currentMatch.b;
+        const oppTeam = isTeamA ? currentMatch.b : currentMatch.a;
+        const myOutcome = isTeamA ? 'A' : 'B';
+
+        // Submit vote for self first
+        submitReport(myOutcome);
+
+        // Submit for teammates + opponent so total reaches 6 votes for myOutcome
+        const otherPids = [...myTeam.filter(id => id !== currentUser.uid), ...oppTeam].slice(0, 5);
+        otherPids.forEach(pid => {
+          if (!isSandboxMode && db) {
+            setDoc(doc(db, 'matches', currentMatch.id, 'reports', pid), { w: myOutcome }).catch(()=>{});
+          } else {
+            SandboxDB.reports[`${currentMatch.id}_${pid}`] = { w: myOutcome };
+          }
+        });
+        if (isSandboxMode) SandboxDB.save();
+      });
+
+      async function finalizeMatch(matchDoc, outcome) {
+        const teamA = matchDoc.players.filter(p => matchDoc.a.includes(p.id));
+        const teamB = matchDoc.players.filter(p => matchDoc.b.includes(p.id));
+        const deltas = computeEloDeltas(teamA, teamB, outcome);
+
+        const resultData = {
+          done: true,
+          result: {
+            win: outcome,
+            d: deltas
+          }
+        };
+
+        if (!isSandboxMode && db) {
+          try {
+            await updateDoc(doc(db, 'matches', matchDoc.id), resultData);
+          } catch(e) {
+            console.log('Finalize match update error:', e.message);
+          }
+        } else {
+          if (SandboxDB.matches[matchDoc.id]) {
+            SandboxDB.matches[matchDoc.id].done = true;
+            SandboxDB.matches[matchDoc.id].result = resultData.result;
+            SandboxDB.save();
+          }
+        }
+        matchDoc.done = true;
+        matchDoc.result = resultData.result;
+        handleMatchFinished(matchDoc);
+      }
+
+      async function handleMatchFinished(matchDoc) {
+        currentMatch = matchDoc;
+        const result = matchDoc.result;
+        if (!result) return;
+
+        // Display results banner
+        document.getElementById('reporting-actions').style.display = 'none';
+        matchCompletedBanner.style.display = 'block';
+
+        let winText = 'Match Concluded';
+        if (result.win === 'A') winText = 'Counter-Terrorists Win (Team A)';
+        else if (result.win === 'B') winText = 'Terrorists Win (Team B)';
+        else if (result.win === 'X') winText = 'Match Voided';
+        completedWinnerText.textContent = winText;
+
+        const myDelta = result.d?.[currentUser?.uid] || 0;
+        const sign = myDelta > 0 ? `+${myDelta}` : `${myDelta}`;
+        const deltaColor = myDelta > 0 ? 'var(--vgui-green)' : myDelta < 0 ? 'var(--vgui-red)' : 'var(--vgui-text-dim)';
+        completedEloDelta.innerHTML = `Your Rating Change: <span style="color: ${deltaColor};">${sign} Elo</span>`;
+
+        // Apply rating update to players/{uid} once (guard with lastMatch)
+        if (currentUser && playerProfile.lastMatch !== matchDoc.id) {
+          playerProfile.lastMatch = matchDoc.id;
+          playerProfile.elo = Math.max(100, Math.round((playerProfile.elo || 1000) + myDelta));
+
+          if (result.win === 'A') {
+            if (matchDoc.a.includes(currentUser.uid)) playerProfile.w++;
+            else playerProfile.l++;
+          } else if (result.win === 'B') {
+            if (matchDoc.b.includes(currentUser.uid)) playerProfile.w++;
+            else playerProfile.l++;
+          }
+          // Void changes neither W nor L
+
+          playerProfile.hist = [
+            { map: matchDoc.map, d: myDelta },
+            ...(playerProfile.hist || [])
+          ].slice(0, 20);
+
+          updateHud();
+
+          // Persist to DB
+          if (!isSandboxMode && db) {
+            try {
+              await updateDoc(doc(db, 'players', currentUser.uid), {
+                elo: playerProfile.elo,
+                w: playerProfile.w,
+                l: playerProfile.l,
+                hist: playerProfile.hist,
+                lastMatch: playerProfile.lastMatch
+              });
+            } catch(e) {
+              console.error('Failed to update player ratings in Firestore:', e);
+            }
+          } else {
+            SandboxDB.players[currentUser.uid] = { ...playerProfile };
+            SandboxDB.save();
+          }
+        }
+      }
+
+      function dismissCurrentMatch() {
+        if (currentMatch) {
+          const dismissed = JSON.parse(localStorage.getItem('cs16_dismissed_matches') || '[]');
+          dismissed.push(currentMatch.id);
+          localStorage.setItem('cs16_dismissed_matches', JSON.stringify(dismissed));
+        }
+        currentMatch = null;
+        if (reportsUnsub) { reportsUnsub(); reportsUnsub = null; }
+        myVote = null;
+        myVoteStatus.textContent = '';
+        document.getElementById('reporting-actions').style.display = 'flex';
+        matchCompletedBanner.style.display = 'none';
+        switchScreen('setup');
+      }
+
+      leaveMatchBtn.addEventListener('click', dismissCurrentMatch);
+      returnSetupBtn.addEventListener('click', dismissCurrentMatch);
+
+      // =========================================================================
+      // Top 20 Leaderboard
+      // =========================================================================
+      function renderLeaderboard(playersList) {
+        // Filter players who have played at least one ranked match (w + l > 0)
+        const ranked = playersList.filter(p => ((p.w || 0) + (p.l || 0)) > 0);
+        ranked.sort((a, b) => (b.elo || 1000) - (a.elo || 1000));
+        const top20 = ranked.slice(0, 20);
+
+        if (top20.length === 0) {
+          leaderboardTbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--vgui-text-dim); padding: 12px;">No ranked matches recorded yet.</td></tr>`;
+          return;
+        }
+
+        leaderboardTbody.innerHTML = top20.map((p, idx) => {
+          const rank = getRank(p.elo);
+          const isMe = currentUser && p.id === currentUser.uid;
+          return `
+            <tr style="${isMe ? 'background: rgba(196, 181, 80, 0.15);' : ''}">
+              <td style="color: var(--vgui-gold); font-weight: bold;">${idx + 1}</td>
+              <td style="font-weight: bold; color: ${isMe ? 'var(--vgui-gold)' : '#fff'};">
+                ${escapeHtml(p.name)} ${isMe ? '(You)' : ''}
+              </td>
+              <td><span class="rank-badge ${rank.class}">${rank.name}</span></td>
+              <td class="font-hud" style="text-align: right; color: var(--vgui-gold);">${Math.round(p.elo || 1000)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // =========================================================================
+      // Realtime Listeners (Firestore)
+      // =========================================================================
+      function initFirestoreListeners() {
+        if (!db || !currentUser) return;
+
+        // 1. Listen to queue collection for active region
+        const qRef = collection(db, 'queue');
+        onSnapshot(qRef, (snap) => {
+          const list = [];
+          snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+          handleQueueUpdate(list);
+        });
+
+        // 2. Listen to matches containing currentUser.uid (no orderBy to avoid composite index)
+        const matchesQuery = query(
+          collection(db, 'matches'),
+          where('pids', 'array-contains', currentUser.uid)
+        );
+
+        onSnapshot(matchesQuery, (snap) => {
+          const dismissed = JSON.parse(localStorage.getItem('cs16_dismissed_matches') || '[]');
+          const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
+          let newestMatch = null;
+          let newestTime = 0;
+
+          snap.forEach(d => {
+            const data = { id: d.id, ...d.data() };
+            if (dismissed.includes(d.id)) return;
+            const time = (data.created?.toMillis ? data.created.toMillis() : data.created) || 0;
+            if (time < fourHoursAgo) return;
+
+            if (time >= newestTime) {
+              newestTime = time;
+              newestMatch = data;
+            }
+          });
+
+          if (newestMatch) {
+            enterMatch(newestMatch);
+          }
+        });
+
+        // 3. Listen to players for top 20 leaderboard
+        const playersCol = collection(db, 'players');
+        onSnapshot(playersCol, (snap) => {
+          const list = [];
+          snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+          renderLeaderboard(list);
+        });
+      }
+
+      // =========================================================================
+      // Realtime Listeners (Local Sandbox)
+      // =========================================================================
+      function initSandboxListeners() {
+        SandboxDB.subscribe(() => {
+          // Queue update
+          const qList = [];
+          for (const id in SandboxDB.queue) {
+            qList.push({ id, ...SandboxDB.queue[id] });
+          }
+          handleQueueUpdate(qList);
+
+          // Matches update
+          if (currentUser) {
+            const dismissed = JSON.parse(localStorage.getItem('cs16_dismissed_matches') || '[]');
+            const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
+            let newestMatch = null;
+            let newestTime = 0;
+
+            for (const id in SandboxDB.matches) {
+              const m = SandboxDB.matches[id];
+              if (dismissed.includes(id)) continue;
+              if (m.pids && m.pids.includes(currentUser.uid)) {
+                const time = m.created || 0;
+                if (time < fourHoursAgo) continue;
+                if (time >= newestTime) {
+                  newestTime = time;
+                  newestMatch = m;
+                }
+              }
+            }
+
+            if (newestMatch) {
+              enterMatch(newestMatch);
+            }
+          }
+
+          // Leaderboard update
+          const pList = [];
+          for (const id in SandboxDB.players) {
+            pList.push({ id, ...SandboxDB.players[id] });
+          }
+          renderLeaderboard(pList);
+        });
+
+        // Initial trigger
+        SandboxDB.notify();
+      }
+
+      // =========================================================================
+      // Simulation Action: + Simulate 9 Players in Queue
+      // =========================================================================
+      simulateQueueBtn.addEventListener('click', async () => {
+        const botNames = [
+          'Neo', 'f0rest', 'GeT_RiGhT', 'HeatoN', 'Potti',
+          'SpawN', 'cArn', 'dsn', 'trace', 'walle', 'markeloff', 'Edward'
+        ];
+        const shuffled = botNames.sort(() => 0.5 - Math.random()).slice(0, 9);
+        const mapPools = [
+          ['de_dust2', 'de_inferno'],
+          ['de_dust2'],
+          ['de_mirage', 'de_inferno'],
+          ['de_dust2', 'de_mirage'],
+          ['de_inferno', 'de_dust2', 'de_mirage']
+        ];
+
+        for (let i = 0; i < shuffled.length; i++) {
+          const name = shuffled[i];
+          const botUid = `bot_${name.toLowerCase()}`;
+          const botElo = 850 + Math.floor(Math.random() * 650);
+          const maps = mapPools[i % mapPools.length];
+
+          const botEntry = {
+            name: name,
+            elo: botElo,
+            region: selectedRegion,
+            maps: maps,
+            seen: Date.now()
+          };
+
+          if (!isSandboxMode && db) {
+            setDoc(doc(db, 'queue', botUid), {
+              ...botEntry,
+              joined: serverTimestamp()
+            }).catch(()=>{});
+            // also ensure player doc exists for leaderboard
+            setDoc(doc(db, 'players', botUid), {
+              name: name,
+              elo: botElo,
+              w: Math.floor(Math.random() * 5) + 1,
+              l: Math.floor(Math.random() * 4),
+              hist: [{ map: 'de_dust2', d: 12 }],
+              lastMatch: 'init'
+            }, { merge: true }).catch(()=>{});
+          } else {
+            SandboxDB.queue[botUid] = {
+              ...botEntry,
+              joined: Date.now() - (shuffled.length - i) * 1000
+            };
+            if (!SandboxDB.players[botUid]) {
+              SandboxDB.players[botUid] = {
+                name: name,
+                elo: botElo,
+                w: Math.floor(Math.random() * 5) + 1,
+                l: Math.floor(Math.random() * 4),
+                hist: [{ map: 'de_dust2', d: 12 }],
+                lastMatch: 'init'
+              };
+            }
+          }
+        }
+
+        if (isSandboxMode) {
+          SandboxDB.save();
+        }
+      });
+
+      // Start Backend
+      initializeBackend();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "1.6 Pug Finder",
+  "description": "Browser matchmaking for Counter-Strike 1.6 5v5 classic pugs with Anonymous Auth, Firestore matchmaking, and classic VGUI styling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
